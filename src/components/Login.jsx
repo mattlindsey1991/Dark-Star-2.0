@@ -15,6 +15,10 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
 
   async function handleSignIn(e) {
     e.preventDefault();
@@ -23,6 +27,22 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) setError(error.message);
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    setResetMsg("");
+    if (!resetEmail.trim()) return;
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setResetLoading(false);
+    if (error) {
+      setResetMsg(error.message);
+    } else {
+      setResetMsg("If that email has an account, a reset link is on its way. Check your inbox.");
+    }
   }
 
   return (
@@ -108,6 +128,66 @@ export default function Login() {
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
+
+        <div style={{ textAlign: "center", marginTop: "14px" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setResetOpen((v) => !v);
+              setResetEmail(email);
+              setResetMsg("");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: COLORS.inkDim,
+              fontSize: "11.5px",
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: 0,
+            }}
+          >
+            {resetOpen ? "Hide" : "Forgot or need to set your password?"}
+          </button>
+        </div>
+
+        {resetOpen && (
+          <div style={{ marginTop: "12px", paddingTop: "14px", borderTop: `1px solid ${COLORS.hair}` }}>
+            <label style={{ fontSize: "11px", color: COLORS.inkDim, display: "block", marginBottom: "4px" }}>
+              Email for reset link
+            </label>
+            <input
+              type="email"
+              value={resetEmail}
+              onChange={(e) => setResetEmail(e.target.value)}
+              placeholder="name@agency.com"
+              style={inputStyle}
+            />
+            <button
+              type="button"
+              onClick={handleResetPassword}
+              disabled={resetLoading}
+              style={{
+                width: "100%",
+                marginTop: "10px",
+                padding: "8px",
+                borderRadius: "5px",
+                border: `1px solid ${COLORS.hair}`,
+                background: "transparent",
+                color: COLORS.ink,
+                fontSize: "12.5px",
+                cursor: "pointer",
+              }}
+            >
+              {resetLoading ? "Sending…" : "Send reset link"}
+            </button>
+            {resetMsg && (
+              <div style={{ fontSize: "11.5px", color: COLORS.inkDim, marginTop: "8px", lineHeight: 1.4 }}>
+                {resetMsg}
+              </div>
+            )}
+          </div>
+        )}
 
         <p style={{ fontSize: "11px", color: COLORS.inkDim, marginTop: "18px", lineHeight: 1.5 }}>
           No account yet? Ask whoever manages your Supabase project to invite you
