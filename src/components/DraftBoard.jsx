@@ -38,10 +38,15 @@ const COLORS = {
   offenseDim: "rgba(201,138,62,0.14)",
   defense: "#3E7B94",
   defenseDim: "rgba(62,123,148,0.14)",
-  elite: "#6B9E6E",
-  quality: "#C9A23E",
-  depth: "#7C8794",
   ungraded: "#54585F",
+  tierGreen: "#4C9A5B",
+  tierGreenText: "#EAF6EC",
+  tierYellow: "#D9B23C",
+  tierYellowText: "#2B2000",
+  tierRed: "#C24E4E",
+  tierRedText: "#FCEDED",
+  tierBlack: "#0D0E10",
+  tierBlackText: "#ECE7DC",
 };
 
 function computeAvg(grades) {
@@ -51,12 +56,12 @@ function computeAvg(grades) {
 }
 
 function gradeTier(avg) {
-  // Lower grade is better on this scale: 1.0 is elite, 9.0 is priority free agent.
-  if (avg === null) return { label: "Ungraded", color: COLORS.ungraded };
-  if (avg < 2.0) return { label: "Elite", color: COLORS.elite };
-  if (avg < 3.5) return { label: "Quality starter", color: COLORS.quality };
-  if (avg < 5.5) return { label: "Depth / backup", color: COLORS.depth };
-  return { label: "Priority FA", color: COLORS.ungraded };
+  // Lower grade is better on this scale: 1.0 is elite, 9.0 is not draftable.
+  if (avg === null) return { label: "Ungraded", color: COLORS.ungraded, text: COLORS.ink, filled: false };
+  if (avg < 3.5) return { label: "Elite", color: COLORS.tierGreen, text: COLORS.tierGreenText, filled: true };
+  if (avg < 5.5) return { label: "Depth / backup", color: COLORS.tierYellow, text: COLORS.tierYellowText, filled: true };
+  if (avg < 9.0) return { label: "Priority FA", color: COLORS.tierRed, text: COLORS.tierRedText, filled: true };
+  return { label: "Not draftable", color: COLORS.tierBlack, text: COLORS.tierBlackText, filled: true };
 }
 
 function fmtGrade(avg) {
@@ -346,8 +351,21 @@ export default function DraftBoard({ session }) {
           </div>
         </div>
 
-        <div style={{ fontSize: "11px", color: COLORS.inkDim, marginBottom: "16px", fontFamily: "'IBM Plex Mono', monospace" }}>
-          SCALE: 1.0 = ELITE · 9.0 = PRIORITY FA — LOWER GRADE RANKS HIGHER
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "16px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+            LOWER GRADE RANKS HIGHER
+          </span>
+          {[
+            { label: "1.0–3.49", color: COLORS.tierGreen },
+            { label: "3.5–5.49", color: COLORS.tierYellow },
+            { label: "5.5–8.99", color: COLORS.tierRed },
+            { label: "9.0", color: COLORS.tierBlack },
+          ].map((s) => (
+            <span key={s.label} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: s.color, border: "1px solid rgba(255,255,255,0.15)" }} />
+              {s.label}
+            </span>
+          ))}
         </div>
 
         {errorMsg && (
@@ -412,7 +430,10 @@ export default function DraftBoard({ session }) {
                                 {p.name}
                               </div>
                               <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {p.school || "School unset"} · Ent: {p.entry_year}
+                                {p.school || "School unset"}
+                              </div>
+                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.agents ? p.agents : "No agent listed"}
                               </div>
                             </div>
                             <div
@@ -421,8 +442,9 @@ export default function DraftBoard({ session }) {
                                 fontFamily: "'IBM Plex Mono', monospace",
                                 fontSize: "12px",
                                 fontWeight: 600,
-                                color: tier.color,
-                                border: `1.5px solid ${tier.color}`,
+                                color: tier.filled ? tier.text : tier.color,
+                                background: tier.filled ? tier.color : "transparent",
+                                border: `1.5px solid ${tier.filled ? "rgba(255,255,255,0.15)" : tier.color}`,
                                 borderRadius: "50%",
                                 width: "34px",
                                 height: "34px",
@@ -439,8 +461,11 @@ export default function DraftBoard({ session }) {
 
                           {isOpen && (
                             <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
-                              <div style={{ fontSize: "10.5px", color: tier.color, fontFamily: "'IBM Plex Mono', monospace", marginBottom: "10px" }}>
-                                {tier.label.toUpperCase()}
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                                <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: tier.color, border: tier.filled ? "1px solid rgba(255,255,255,0.15)" : "none", flexShrink: 0 }} />
+                                <span style={{ fontSize: "10.5px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+                                  {tier.label.toUpperCase()}
+                                </span>
                               </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School</label>
