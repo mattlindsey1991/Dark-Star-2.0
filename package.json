@@ -1,79 +1,20 @@
-# The Big Board
-
-A team draft prospect tracker: offense/defense boards, draft classes 2027–2031,
-scout grades that auto-average and re-rank, login-gated for your team via
-Supabase Auth.
-
-## 1. Set up Supabase
-
-1. Open your Supabase project (or create a new one at supabase.com).
-2. Go to **SQL Editor → New query**, paste in the contents of
-   `supabase/schema.sql`, and run it. This creates the `prospects` and
-   `grades` tables, locks them down so only signed-in users can read/write,
-   and turns on realtime sync.
-3. Go to **Authentication → Providers** and make sure **Email** is enabled.
-4. Go to **Authentication → Users → Invite user** and invite each teammate
-   by email. They'll get an email to set their password — there's no public
-   sign-up page in the app itself, so this invite list *is* your access list.
-5. Go to **Project Settings → API** and copy:
-   - **Project URL**
-   - **anon public** key
-
-## 2. Run it locally
-
-```bash
-npm install
-cp .env.example .env
-```
-
-Paste your Project URL and anon key into `.env`, then:
-
-```bash
-npm run dev
-```
-
-Visit the printed local URL and sign in with an invited account.
-
-## 3. Push to GitHub
-
-Create an empty repository on GitHub first (github.com → New repository —
-don't initialize it with a README), then from this folder:
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: draft board"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git
-git push -u origin main
-```
-
-## 4. Deploy on Vercel
-
-1. In Vercel, **Add New → Project**, import the GitHub repo you just pushed.
-2. Framework preset: **Vite** (auto-detected). Build command `npm run build`,
-   output directory `dist` (Vercel usually fills these in automatically).
-3. Under **Environment Variables**, add:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   (same values as your local `.env`)
-4. Deploy. Vercel gives you a `*.vercel.app` URL immediately.
-
-## 5. Point your domain at it
-
-In the Vercel project → **Settings → Domains**, add your domain. Vercel will
-show you a DNS record (usually a CNAME, or an A record if it's your apex
-domain) to add at your domain registrar. Once that record propagates
-(minutes to a few hours), your custom domain serves the board directly.
-
-## Notes
-
-- Every invited teammate sees the same shared board — the app doesn't
-  scope data per-user. That's intentional for a shared recruiting tool, but
-  say the word if you'd rather each person see and edit only what they add.
-- Grades are locked to the fixed scale (1.0, 1.2, 1.5 … 9.0) matching your
-  scouting convention, where **lower is better** (1.0 = elite, 9.0 = priority
-  free agent).
-- To change tier bands, edit `gradeTier()` in `src/components/DraftBoard.jsx`.
-- To add or rename positions, edit `OFFENSE_POSITIONS` / `DEFENSE_POSITIONS`
-  at the top of the same file.
+{
+  "name": "draft-board",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
+}
