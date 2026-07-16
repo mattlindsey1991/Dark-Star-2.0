@@ -1,0 +1,587 @@
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { supabase } from "../supabaseClient";
+
+const OFFENSE_POSITIONS = [
+  { abbr: "QB", name: "Quarterback" },
+  { abbr: "RB", name: "Running back" },
+  { abbr: "WR", name: "Wide receiver" },
+  { abbr: "TE", name: "Tight end" },
+  { abbr: "OT", name: "Offensive tackle" },
+  { abbr: "OG", name: "Offensive guard" },
+  { abbr: "OC", name: "Center" },
+];
+
+const DEFENSE_POSITIONS = [
+  { abbr: "DL", name: "Defensive line" },
+  { abbr: "EDGE", name: "Edge rusher" },
+  { abbr: "LB", name: "Linebacker" },
+  { abbr: "DS", name: "Safety" },
+  { abbr: "DC", name: "Cornerback" },
+  { abbr: "PT", name: "Punter" },
+  { abbr: "PK", name: "Kicker" },
+  { abbr: "LS", name: "Long snapper" },
+];
+
+const YEARS = [2027, 2028, 2029, 2030, 2031];
+const ENTRY_YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
+const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8, 6.3, 6.8, 7.3, 7.8, 8.0, 8.5, 9.0];
+
+const COLORS = {
+  bg: "#15171A",
+  surface: "#1D2024",
+  surfaceHi: "#242830",
+  ink: "#ECE7DC",
+  inkDim: "#9C9C93",
+  hair: "rgba(236,231,220,0.10)",
+  hairStrong: "rgba(236,231,220,0.18)",
+  offense: "#C98A3E",
+  offenseDim: "rgba(201,138,62,0.14)",
+  defense: "#3E7B94",
+  defenseDim: "rgba(62,123,148,0.14)",
+  elite: "#6B9E6E",
+  quality: "#C9A23E",
+  depth: "#7C8794",
+  ungraded: "#54585F",
+};
+
+function computeAvg(grades) {
+  if (!grades || grades.length === 0) return null;
+  const sum = grades.reduce((a, g) => a + Number(g.grade), 0);
+  return sum / grades.length;
+}
+
+function gradeTier(avg) {
+  // Lower grade is better on this scale: 1.0 is elite, 9.0 is priority free agent.
+  if (avg === null) return { label: "Ungraded", color: COLORS.ungraded };
+  if (avg < 2.0) return { label: "Elite", color: COLORS.elite };
+  if (avg < 3.5) return { label: "Quality starter", color: COLORS.quality };
+  if (avg < 5.5) return { label: "Depth / backup", color: COLORS.depth };
+  return { label: "Priority FA", color: COLORS.ungraded };
+}
+
+function fmtGrade(avg) {
+  return avg === null ? "—" : avg.toFixed(1);
+}
+
+export default function DraftBoard({ session }) {
+  const [prospects, setProspects] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [board, setBoard] = useState("OFFENSE");
+  const [year, setYear] = useState(2027);
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+  const [addOpenFor, setAddOpenFor] = useState(null);
+  const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
+  const [gradeDraft, setGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const fetchAll = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("prospects")
+      .select("*, grades(*)")
+      .order("created_at", { ascending: true });
+    if (error) {
+      setErrorMsg("Couldn't load the board. Try refreshing.");
+    } else {
+      setProspects(data);
+      setErrorMsg("");
+    }
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+
+    const channel = supabase
+      .channel("draft-board-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "prospects" }, fetchAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "grades" }, fetchAll)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [fetchAll]);
+
+  const positions = board === "OFFENSE" ? OFFENSE_POSITIONS : DEFENSE_POSITIONS;
+
+  const grouped = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const map = {};
+    positions.forEach((p) => (map[p.abbr] = []));
+    prospects
+      .filter((pr) => pr.draft_class_year === year && map[pr.position] !== undefined)
+      .filter(
+        (pr) =>
+          !q ||
+          pr.name.toLowerCase().includes(q) ||
+          (pr.school || "").toLowerCase().includes(q)
+      )
+      .forEach((pr) => map[pr.position].push(pr));
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => {
+        const av = computeAvg(a.grades);
+        const bv = computeAvg(b.grades);
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        return av - bv;
+      });
+    });
+    return map;
+  }, [prospects, positions, year, search]);
+
+  const totalCount = useMemo(
+    () => Object.values(grouped).reduce((a, list) => a + list.length, 0),
+    [grouped]
+  );
+
+  function openAdd(posAbbr) {
+    setAddOpenFor(posAbbr);
+    setAddDraft({ name: "", school: "", entryYear: 2024 });
+  }
+
+  async function submitAdd(posAbbr) {
+    if (!addDraft.name.trim()) return;
+    const { data, error } = await supabase
+      .from("prospects")
+      .insert({
+        name: addDraft.name.trim(),
+        position: posAbbr,
+        board,
+        school: addDraft.school.trim(),
+        draft_class_year: year,
+        entry_year: Number(addDraft.entryYear),
+        agents: "",
+        created_by: session.user.id,
+      })
+      .select()
+      .single();
+    if (error) {
+      setErrorMsg("Couldn't add that prospect. Try again.");
+      return;
+    }
+    setProspects((prev) => [...prev, { ...data, grades: [] }]);
+    setAddOpenFor(null);
+    setExpandedId(data.id);
+  }
+
+  async function updateProspect(id, patch) {
+    setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    const { error } = await supabase.from("prospects").update(patch).eq("id", id);
+    if (error) setErrorMsg("That change didn't save. Try again.");
+  }
+
+  async function deleteProspect(id) {
+    setProspects((prev) => prev.filter((p) => p.id !== id));
+    if (expandedId === id) setExpandedId(null);
+    const { error } = await supabase.from("prospects").delete().eq("id", id);
+    if (error) setErrorMsg("Couldn't remove that prospect. Try again.");
+  }
+
+  async function addGrade(id) {
+    const g = parseFloat(gradeDraft.grade);
+    if (!gradeDraft.scout.trim() || isNaN(g) || !GRADE_SCALE.includes(g)) return;
+    const { data, error } = await supabase
+      .from("grades")
+      .insert({ prospect_id: id, scout: gradeDraft.scout.trim(), grade: g, created_by: session.user.id })
+      .select()
+      .single();
+    if (error) {
+      setErrorMsg("Couldn't save that grade. Try again.");
+      return;
+    }
+    setProspects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, grades: [...p.grades, data] } : p))
+    );
+    setGradeDraft({ scout: "", grade: GRADE_SCALE[0] });
+  }
+
+  async function deleteGrade(prospectId, gradeId) {
+    setProspects((prev) =>
+      prev.map((p) =>
+        p.id === prospectId ? { ...p, grades: p.grades.filter((g) => g.id !== gradeId) } : p
+      )
+    );
+    const { error } = await supabase.from("grades").delete().eq("id", gradeId);
+    if (error) setErrorMsg("Couldn't remove that grade. Try again.");
+  }
+
+  const accent = board === "OFFENSE" ? COLORS.offense : COLORS.defense;
+
+  return (
+    <div
+      style={{
+        background: COLORS.bg,
+        color: COLORS.ink,
+        fontFamily: "'Inter', sans-serif",
+        minHeight: "100vh",
+        padding: "28px 24px 40px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      <style>{`
+        .db-row:hover { background: rgba(236,231,220,0.04) !important; }
+        .db-input {
+          background: rgba(236,231,220,0.06);
+          border: 1px solid ${COLORS.hair};
+          color: ${COLORS.ink};
+          border-radius: 4px;
+          padding: 6px 8px;
+          font-family: 'Inter', sans-serif;
+          font-size: 12.5px;
+          outline: none;
+        }
+        .db-input:focus { border-color: ${COLORS.hairStrong}; }
+        .db-input::placeholder { color: ${COLORS.inkDim}; }
+        .db-btn {
+          background: transparent;
+          border: 1px solid ${COLORS.hair};
+          color: ${COLORS.inkDim};
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.12s ease;
+        }
+        .db-btn:hover { border-color: ${COLORS.hairStrong}; color: ${COLORS.ink}; }
+      `}</style>
+
+      <div
+        style={{
+          position: "absolute",
+          top: "-40px",
+          right: "20px",
+          width: "220px",
+          height: "220px",
+          borderRadius: "50%",
+          border: `6px double ${accent}`,
+          opacity: 0.07,
+          transform: "rotate(-10deg)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
+          pointerEvents: "none",
+        }}
+      >
+        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: "56px", color: accent }}>1.0</span>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", letterSpacing: "2px", color: accent }}>
+          ELITE
+        </span>
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}>
+            <h1 style={{ fontFamily: "'Anton', sans-serif", fontSize: "40px", letterSpacing: "1px", margin: 0, lineHeight: 1 }}>
+              THE BIG BOARD
+            </h1>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim, letterSpacing: "1px" }}>
+              {session.user.email}
+            </span>
+          </div>
+          <button className="db-btn" onClick={() => supabase.auth.signOut()} style={{ padding: "7px 12px", fontSize: "12px" }}>
+            Sign out
+          </button>
+        </div>
+
+        <div
+          style={{
+            height: "10px",
+            marginTop: "10px",
+            marginBottom: "20px",
+            backgroundImage: `repeating-linear-gradient(90deg, ${COLORS.hair} 0px, ${COLORS.hair} 1px, transparent 1px, transparent 24px)`,
+          }}
+        />
+
+        <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", marginBottom: "6px" }}>
+          <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
+            {["OFFENSE", "DEFENSE"].map((b) => (
+              <button
+                key={b}
+                onClick={() => setBoard(b)}
+                style={{
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: "17px",
+                  letterSpacing: "1.5px",
+                  padding: "8px 22px",
+                  border: "none",
+                  cursor: "pointer",
+                  background: board === b ? (b === "OFFENSE" ? COLORS.offenseDim : COLORS.defenseDim) : "transparent",
+                  color: board === b ? (b === "OFFENSE" ? COLORS.offense : COLORS.defense) : COLORS.inkDim,
+                }}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "6px" }}>
+            {YEARS.map((y) => (
+              <button
+                key={y}
+                onClick={() => setYear(y)}
+                className="db-btn"
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: "12.5px",
+                  padding: "7px 10px",
+                  borderColor: year === y ? accent : COLORS.hair,
+                  color: year === y ? accent : COLORS.inkDim,
+                }}
+              >
+                {y}
+              </button>
+            ))}
+          </div>
+
+          <input
+            className="db-input"
+            placeholder="Search name or school"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ width: "180px", marginLeft: "auto" }}
+          />
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
+            {totalCount} prospects · {year}
+          </div>
+        </div>
+
+        <div style={{ fontSize: "11px", color: COLORS.inkDim, marginBottom: "16px", fontFamily: "'IBM Plex Mono', monospace" }}>
+          SCALE: 1.0 = ELITE · 9.0 = PRIORITY FA — LOWER GRADE RANKS HIGHER
+        </div>
+
+        {errorMsg && (
+          <div style={{ fontSize: "12px", color: "#D98080", marginBottom: "12px", fontFamily: "'IBM Plex Mono', monospace" }}>
+            {errorMsg}
+          </div>
+        )}
+
+        {!loaded ? (
+          <div style={{ color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px" }}>Loading board…</div>
+        ) : (
+          <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
+            {positions.map((pos) => {
+              const list = grouped[pos.abbr] || [];
+              return (
+                <div
+                  key={pos.abbr}
+                  style={{
+                    minWidth: "270px",
+                    maxWidth: "270px",
+                    background: COLORS.surface,
+                    borderRadius: "8px",
+                    border: `1px solid ${COLORS.hair}`,
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${COLORS.hair}` }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "24px", letterSpacing: "1px", color: accent }}>
+                        {pos.abbr}
+                      </span>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: COLORS.inkDim }}>
+                        {list.length}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "11.5px", color: COLORS.inkDim }}>{pos.name}</div>
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    {list.length === 0 && addOpenFor !== pos.abbr && (
+                      <div style={{ padding: "16px 14px", fontSize: "12px", color: COLORS.inkDim, lineHeight: 1.5 }}>
+                        No prospects logged for {year} yet.
+                      </div>
+                    )}
+                    {list.map((p, idx) => {
+                      const avg = computeAvg(p.grades);
+                      const tier = gradeTier(avg);
+                      const isOpen = expandedId === p.id;
+                      return (
+                        <div key={p.id} style={{ borderBottom: `1px solid ${COLORS.hair}` }}>
+                          <div
+                            className="db-row"
+                            onClick={() => setExpandedId(isOpen ? null : p.id)}
+                            style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", cursor: "pointer" }}
+                          >
+                            <span style={{ fontFamily: "'Anton', sans-serif", fontSize: "20px", color: COLORS.hairStrong, width: "22px" }}>
+                              {String(idx + 1).padStart(2, "0")}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: "13.5px", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.name}
+                              </div>
+                              <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.school || "School unset"} · Ent: {p.entry_year}
+                              </div>
+                            </div>
+                            <div
+                              title={tier.label}
+                              style={{
+                                fontFamily: "'IBM Plex Mono', monospace",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                color: tier.color,
+                                border: `1.5px solid ${tier.color}`,
+                                borderRadius: "50%",
+                                width: "34px",
+                                height: "34px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transform: "rotate(-4deg)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {fmtGrade(avg)}
+                            </div>
+                          </div>
+
+                          {isOpen && (
+                            <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
+                              <div style={{ fontSize: "10.5px", color: tier.color, fontFamily: "'IBM Plex Mono', monospace", marginBottom: "10px" }}>
+                                {tier.label.toUpperCase()}
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                defaultValue={p.school}
+                                onBlur={(e) => updateProspect(p.id, { school: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>College entry year</label>
+                              <select
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                value={p.entry_year || ""}
+                                onChange={(e) => updateProspect(p.id, { entry_year: Number(e.target.value) })}
+                              >
+                                {ENTRY_YEARS.map((ey) => (
+                                  <option key={ey} value={ey}>Ent: {ey}</option>
+                                ))}
+                              </select>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agents assigned</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "10px" }}
+                                placeholder="e.g. J. Rosenhaus"
+                                defaultValue={p.agents}
+                                onBlur={(e) => updateProspect(p.id, { agents: e.target.value })}
+                              />
+
+                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
+                                Scout grades ({p.grades.length})
+                              </div>
+                              {p.grades.map((g) => (
+                                <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", marginBottom: "4px" }}>
+                                  <span style={{ flex: 1, color: COLORS.ink }}>{g.scout}</span>
+                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkDim }}>{Number(g.grade).toFixed(1)}</span>
+                                  <button
+                                    className="db-btn"
+                                    onClick={(e) => { e.stopPropagation(); deleteGrade(p.id, g.id); }}
+                                    style={{ padding: "2px 5px" }}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                              <div style={{ display: "flex", gap: "6px", marginTop: "6px" }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  className="db-input"
+                                  placeholder="Scout"
+                                  style={{ flex: 1, width: 0 }}
+                                  value={gradeDraft.scout}
+                                  onChange={(e) => setGradeDraft({ ...gradeDraft, scout: e.target.value })}
+                                />
+                                <select
+                                  className="db-input"
+                                  style={{ width: "68px" }}
+                                  value={gradeDraft.grade}
+                                  onChange={(e) => setGradeDraft({ ...gradeDraft, grade: e.target.value })}
+                                >
+                                  {GRADE_SCALE.map((g) => (
+                                    <option key={g} value={g}>{g.toFixed(1)}</option>
+                                  ))}
+                                </select>
+                                <button className="db-btn" onClick={() => addGrade(p.id)} style={{ padding: "0 8px" }}>
+                                  +
+                                </button>
+                              </div>
+
+                              <button
+                                className="db-btn"
+                                onClick={(e) => { e.stopPropagation(); deleteProspect(p.id); }}
+                                style={{ marginTop: "12px", fontSize: "11px", color: "#C97A7A", borderColor: "rgba(201,122,122,0.3)", padding: "5px 9px" }}
+                              >
+                                Remove prospect
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ padding: "10px 14px 14px" }}>
+                    {addOpenFor === pos.abbr ? (
+                      <div>
+                        <input
+                          className="db-input"
+                          placeholder="Player name"
+                          style={{ width: "100%", marginBottom: "6px" }}
+                          value={addDraft.name}
+                          onChange={(e) => setAddDraft({ ...addDraft, name: e.target.value })}
+                          autoFocus
+                        />
+                        <input
+                          className="db-input"
+                          placeholder="School"
+                          style={{ width: "100%", marginBottom: "6px" }}
+                          value={addDraft.school}
+                          onChange={(e) => setAddDraft({ ...addDraft, school: e.target.value })}
+                        />
+                        <select
+                          className="db-input"
+                          style={{ width: "100%", marginBottom: "8px" }}
+                          value={addDraft.entryYear}
+                          onChange={(e) => setAddDraft({ ...addDraft, entryYear: Number(e.target.value) })}
+                        >
+                          {ENTRY_YEARS.map((ey) => (
+                            <option key={ey} value={ey}>Ent: {ey}</option>
+                          ))}
+                        </select>
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            className="db-btn"
+                            onClick={() => submitAdd(pos.abbr)}
+                            style={{ flex: 1, padding: "6px", color: accent, borderColor: accent }}
+                          >
+                            Add to board
+                          </button>
+                          <button className="db-btn" onClick={() => setAddOpenFor(null)} style={{ padding: "6px 10px" }}>
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        className="db-btn"
+                        onClick={() => openAdd(pos.abbr)}
+                        style={{ width: "100%", padding: "8px", fontSize: "12px" }}
+                      >
+                        + Add prospect
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
