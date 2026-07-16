@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "../supabaseClient";
+import * as XLSX from "xlsx";
 
 const OFFENSE_POSITIONS = [
   { abbr: "QB", name: "Quarterback" },
@@ -25,6 +26,11 @@ const DEFENSE_POSITIONS = [
 const YEARS = [2027, 2028, 2029, 2030, 2031];
 const ENTRY_YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
 const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8, 6.3, 6.8, 7.3, 7.8, 8.0, 8.5, 9.0];
+
+const POSITION_BOARD = {};
+OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
+DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
+const KNOWN_IMPORT_COLUMNS = new Set(["name", "position", "school", "entry year", "entryyear", "agents"]);
 
 const COLORS = {
   bg: "#15171A",
@@ -79,6 +85,9 @@ export default function DraftBoard({ session }) {
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
   const [gradeDraft, setGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState(null);
+  const fileInputRef = useRef(null);
 
   const fetchAll = useCallback(async () => {
     const { data, error } = await supabase
@@ -208,6 +217,114 @@ export default function DraftBoard({ session }) {
     );
     const { error } = await supabase.from("grades").delete().eq("id", gradeId);
     if (error) setErrorMsg("Couldn't remove that grade. Try again.");
+  }
+
+  function normalizeHeader(h) {
+    return String(h || "").trim().toLowerCase();
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    setImportSummary(null);
+    setErrorMsg("");
+
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const skipped = [];
+      const prospectRows = [];
+      const gradeRows = [];
+
+      rows.forEach((row, idx) => {
+        const keys = Object.keys(row);
+        const keyMap = {};
+        keys.forEach((k) => (keyMap[normalizeHeader(k)] = k));
+
+        const nameKey = keyMap["name"];
+        const posKey = keyMap["position"];
+        const schoolKey = keyMap["school"];
+        const entryYearKey = keyMap["entry year"] || keyMap["entryyear"];
+        const agentsKey = keyMap["agents"];
+
+        const name = nameKey ? String(row[nameKey]).trim() : "";
+        const positionRaw = posKey ? String(row[posKey]).trim().toUpperCase() : "";
+
+        if (!name) {
+          skipped.push({ row: idx + 2, reason: "Missing name" });
+          return;
+        }
+        const rowBoard = POSITION_BOARD[positionRaw];
+        if (!rowBoard) {
+          skipped.push({ row: idx + 2, reason: `Unrecognized position "${positionRaw}" for ${name}` });
+          return;
+        }
+
+        const entryYearRaw = entryYearKey ? row[entryYearKey] : "";
+        const entryYearNum = parseInt(entryYearRaw, 10);
+
+        const tempId = crypto.randomUUID();
+        prospectRows.push({
+          id: tempId,
+          name,
+          position: positionRaw,
+          board: rowBoard,
+          school: schoolKey ? String(row[schoolKey]).trim() : "",
+          draft_class_year: year,
+          entry_year: Number.isFinite(entryYearNum) ? entryYearNum : null,
+          agents: agentsKey ? String(row[agentsKey]).trim() : "",
+          created_by: session.user.id,
+        });
+
+        keys.forEach((k) => {
+          const normalized = normalizeHeader(k);
+          if (KNOWN_IMPORT_COLUMNS.has(normalized)) return;
+          const val = row[k];
+          if (val === "" || val === null || val === undefined) return;
+          const num = parseFloat(val);
+          if (!Number.isFinite(num)) return;
+          gradeRows.push({
+            prospect_id: tempId,
+            scout: String(k).trim(),
+            grade: num,
+            created_by: session.user.id,
+          });
+        });
+      });
+
+      if (prospectRows.length > 0) {
+        const { error: prospectErr } = await supabase.from("prospects").insert(prospectRows);
+        if (prospectErr) {
+          setErrorMsg("Import failed while saving prospects: " + prospectErr.message);
+          setImporting(false);
+          e.target.value = "";
+          return;
+        }
+      }
+      if (gradeRows.length > 0) {
+        const { error: gradeErr } = await supabase.from("grades").insert(gradeRows);
+        if (gradeErr) {
+          setErrorMsg("Prospects imported, but grades failed to save: " + gradeErr.message);
+        }
+      }
+
+      await fetchAll();
+      setImportSummary({
+        prospectCount: prospectRows.length,
+        gradeCount: gradeRows.length,
+        skipped,
+        year,
+      });
+    } catch (err) {
+      setErrorMsg("Couldn't read that file. Make sure it's a valid .xlsx or .csv.");
+    }
+
+    setImporting(false);
+    e.target.value = "";
   }
 
   const accent = board === "OFFENSE" ? COLORS.offense : COLORS.defense;
@@ -346,11 +463,57 @@ export default function DraftBoard({ session }) {
             style={{ width: "180px", marginLeft: "auto" }}
           />
 
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            ref={fileInputRef}
+            onChange={handleImportFile}
+            style={{ display: "none" }}
+          />
+          <button
+            className="db-btn"
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            disabled={importing}
+            title={`Imports into the ${year} class. Columns: Name, Position, School, Entry Year, Agents, plus any scout columns.`}
+            style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+          >
+            {importing ? "Importing…" : "Upload Excel"}
+          </button>
+
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
             {totalCount} prospects · {year}
           </div>
         </div>
 
+        {importSummary && (
+          <div
+            style={{
+              background: COLORS.surfaceHi,
+              border: `1px solid ${COLORS.hair}`,
+              borderRadius: "6px",
+              padding: "10px 14px",
+              marginBottom: "14px",
+              fontSize: "12px",
+              color: COLORS.inkDim,
+            }}
+          >
+            <div style={{ color: COLORS.ink, marginBottom: importSummary.skipped.length ? "6px" : 0 }}>
+              Imported {importSummary.prospectCount} prospect{importSummary.prospectCount === 1 ? "" : "s"} and{" "}
+              {importSummary.gradeCount} grade{importSummary.gradeCount === 1 ? "" : "s"} into the {importSummary.year} class.
+              {importSummary.skipped.length > 0 && ` ${importSummary.skipped.length} row(s) skipped:`}
+            </div>
+            {importSummary.skipped.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: "18px" }}>
+                {importSummary.skipped.map((s, i) => (
+                  <li key={i}>Row {s.row}: {s.reason}</li>
+                ))}
+              </ul>
+            )}
+            <button className="db-btn" onClick={() => setImportSummary(null)} style={{ marginTop: "6px", padding: "3px 8px", fontSize: "11px" }}>
+              Dismiss
+            </button>
+          </div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "16px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
             LOWER GRADE RANKS HIGHER
