@@ -77,3 +77,4 @@ free agent).
 - To change tier bands, edit `gradeTier()` in `src/components/DraftBoard.jsx`.
 - To add or rename positions, edit `OFFENSE_POSITIONS` / `DEFENSE_POSITIONS`
 at the top of the same file.
+
