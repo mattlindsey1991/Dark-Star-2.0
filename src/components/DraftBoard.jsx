@@ -30,6 +30,7 @@ const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8,
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
 DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
+const ALL_POSITIONS = [...OFFENSE_POSITIONS, ...DEFENSE_POSITIONS];
 const KNOWN_IMPORT_COLUMNS = new Set(["name", "position", "school", "entry year", "entryyear", "agents"]);
 
 const COLORS = {
@@ -629,6 +630,45 @@ export default function DraftBoard({ session }) {
                                 <span style={{ fontSize: "10.5px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
                                   {tier.label.toUpperCase()}
                                 </span>
+                              </div>
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={p.position}
+                                    onChange={(e) => {
+                                      const newPos = e.target.value;
+                                      updateProspect(p.id, { position: newPos, board: POSITION_BOARD[newPos] });
+                                    }}
+                                  >
+                                    <optgroup label="Offense">
+                                      {OFFENSE_POSITIONS.map((op) => (
+                                        <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="Defense">
+                                      {DEFENSE_POSITIONS.map((dp) => (
+                                        <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
+                                      ))}
+                                    </optgroup>
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft class</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={p.draft_class_year}
+                                    onChange={(e) => updateProspect(p.id, { draft_class_year: Number(e.target.value) })}
+                                  >
+                                    {YEARS.map((y) => (
+                                      <option key={y} value={y}>{y}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School</label>
