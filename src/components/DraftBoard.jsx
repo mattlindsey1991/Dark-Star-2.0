@@ -88,6 +88,9 @@ export default function DraftBoard({ session }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState(null);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwDraft, setPwDraft] = useState({ pw1: "", pw2: "" });
+  const [pwMsg, setPwMsg] = useState("");
   const fileInputRef = useRef(null);
 
   const fetchAll = useCallback(async () => {
@@ -328,6 +331,25 @@ export default function DraftBoard({ session }) {
     e.target.value = "";
   }
 
+  async function handleSetPassword() {
+    setPwMsg("");
+    if (pwDraft.pw1.length < 6) {
+      setPwMsg("Password must be at least 6 characters.");
+      return;
+    }
+    if (pwDraft.pw1 !== pwDraft.pw2) {
+      setPwMsg("Passwords don't match.");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: pwDraft.pw1 });
+    if (error) {
+      setPwMsg(error.message);
+      return;
+    }
+    setPwMsg("Password set. You can sign in with it next time.");
+    setPwDraft({ pw1: "", pw2: "" });
+  }
+
   const accent = board === "OFFENSE" ? COLORS.offense : COLORS.defense;
 
   return (
@@ -401,10 +423,56 @@ export default function DraftBoard({ session }) {
               {session.user.email}
             </span>
           </div>
-          <button className="db-btn" onClick={() => supabase.auth.signOut()} style={{ padding: "7px 12px", fontSize: "12px" }}>
-            Sign out
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button className="db-btn" onClick={() => setPwOpen((v) => !v)} style={{ padding: "7px 12px", fontSize: "12px" }}>
+              {pwOpen ? "Close" : "Set password"}
+            </button>
+            <button className="db-btn" onClick={() => supabase.auth.signOut()} style={{ padding: "7px 12px", fontSize: "12px" }}>
+              Sign out
+            </button>
+          </div>
         </div>
+
+        {pwOpen && (
+          <div
+            style={{
+              background: COLORS.surfaceHi,
+              border: `1px solid ${COLORS.hair}`,
+              borderRadius: "6px",
+              padding: "12px 14px",
+              marginTop: "10px",
+              maxWidth: "320px",
+            }}
+          >
+            <div style={{ fontSize: "11.5px", color: COLORS.inkDim, marginBottom: "8px" }}>
+              Set a password to sign in with email + password next time.
+            </div>
+            <input
+              className="db-input"
+              type="password"
+              placeholder="New password"
+              style={{ width: "100%", marginBottom: "6px" }}
+              value={pwDraft.pw1}
+              onChange={(e) => setPwDraft({ ...pwDraft, pw1: e.target.value })}
+            />
+            <input
+              className="db-input"
+              type="password"
+              placeholder="Confirm password"
+              style={{ width: "100%", marginBottom: "8px" }}
+              value={pwDraft.pw2}
+              onChange={(e) => setPwDraft({ ...pwDraft, pw2: e.target.value })}
+            />
+            {pwMsg && (
+              <div style={{ fontSize: "11.5px", color: pwMsg.startsWith("Password set") ? "#8FBF8F" : "#D98080", marginBottom: "8px" }}>
+                {pwMsg}
+              </div>
+            )}
+            <button className="db-btn" onClick={handleSetPassword} style={{ padding: "6px 12px", fontSize: "12px", color: accent, borderColor: accent }}>
+              Save password
+            </button>
+          </div>
+        )}
 
         <div
           style={{
