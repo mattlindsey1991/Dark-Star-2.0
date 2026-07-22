@@ -668,6 +668,23 @@ export default function DraftBoard({ session }) {
                                 {p.agents ? p.agents : "No agent listed"}
                               </div>
                             </div>
+                            {p.is_a1 && (
+                              <span
+                                style={{
+                                  fontFamily: "'IBM Plex Mono', monospace",
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#E24C4C",
+                                  border: "1.5px solid #E24C4C",
+                                  borderRadius: "4px",
+                                  padding: "2px 5px",
+                                  flexShrink: 0,
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                A1
+                              </span>
+                            )}
                             <div
                               title={tier.label}
                               style={{
@@ -699,6 +716,31 @@ export default function DraftBoard({ session }) {
                                   {tier.label.toUpperCase()}
                                 </span>
                               </div>
+
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "7px",
+                                  marginBottom: "10px",
+                                  cursor: "pointer",
+                                  fontSize: "12px",
+                                  color: p.is_a1 ? "#E24C4C" : COLORS.inkDim,
+                                  fontWeight: p.is_a1 ? 700 : 400,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!p.is_a1}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updateProspect(p.id, { is_a1: e.target.checked });
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ accentColor: "#E24C4C", width: "14px", height: "14px" }}
+                                />
+                                Mark as A1 client
+                              </label>
 
                               <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                                 <div style={{ flex: 1 }}>
