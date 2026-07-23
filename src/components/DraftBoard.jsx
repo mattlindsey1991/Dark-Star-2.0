@@ -880,19 +880,19 @@ export default function DraftBoard({ session }) {
                                     onChange={(e) => {
                                       const newPos = e.target.value;
                                       updateProspect(p.id, { position: newPos, board: POSITION_BOARD[newPos] });
-                                    }}
-                                  >
-                                    <optgroup label="Offense">
-                                      {OFFENSE_POSITIONS.map((op) => (
-                                        <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
-                                      ))}
-                                    </optgroup>
-                                    <optgroup label="Defense">
-                                      {DEFENSE_POSITIONS.map((dp) => (
-                                        <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
-                                      ))}
-                                    </optgroup>
-                                  </select>
+                                  }}
+                                >
+                                  <optgroup label="Offense">
+                                    {OFFENSE_POSITIONS.map((op) => (
+                                      <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label="Defense">
+                                    {DEFENSE_POSITIONS.map((dp) => (
+                                      <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
+                                    ))}
+                                  </optgroup>
+                                </select>
                                 </div>
                                 <div style={{ flex: 1 }}>
                                   <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft class</label>
@@ -975,7 +975,24 @@ export default function DraftBoard({ session }) {
                                 <button className="db-btn" onClick={() => addGrade(p.id)} style={{ padding: "0 8px" }}>
                                   +
                                 </button>
-                              </div>
+                                </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginTop: "10px", marginBottom: "3px" }}>Meetings</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                placeholder="e.g. Combine, 3/12"
+                                defaultValue={p.meetings}
+                                onBlur={(e) => updateProspect(p.id, { meetings: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Notes</label>
+                              <textarea
+                                className="db-input"
+                                style={{ width: "100%", minHeight: "70px", resize: "vertical", fontFamily: "'Inter', sans-serif" }}
+                                defaultValue={p.notes}
+                                onBlur={(e) => updateProspect(p.id, { notes: e.target.value })}
+                              />
 
                               <button
                                 className="db-btn"
@@ -1055,7 +1072,7 @@ export default function DraftBoard({ session }) {
                             </div>
                           </div>
 
-                          {isOpen && (
+                          {(isOpen && (
                             <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
                               <label
                                 style={{
@@ -1203,6 +1220,23 @@ export default function DraftBoard({ session }) {
                                 ))}
                               </select>
 
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Meetings</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                placeholder="e.g. Dinner, 3/12"
+                                defaultValue={v.meetings}
+                                onBlur={(e) => updateVet(v.id, { meetings: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Notes</label>
+                              <textarea
+                                className="db-input"
+                                style={{ width: "100%", minHeight: "70px", resize: "vertical", fontFamily: "'Inter', sans-serif", marginBottom: "10px" }}
+                                defaultValue={v.notes}
+                                onBlur={(e) => updateVet(v.id, { notes: e.target.value })}
+                              />
+
                               <button
                                 className="db-btn"
                                 onClick={(e) => { e.stopPropagation(); deleteVet(v.id); }}
@@ -1211,7 +1245,7 @@ export default function DraftBoard({ session }) {
                                 Remove player
                               </button>
                             </div>
-                          )}
+                          ))}
                         </div>
                       );
                     })}
