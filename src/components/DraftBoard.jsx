@@ -40,6 +40,38 @@ OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
 DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
 const ALL_POSITIONS = [...OFFENSE_POSITIONS, ...DEFENSE_POSITIONS];
 const KNOWN_IMPORT_COLUMNS = new Set(["name", "position", "school", "entry year", "entryyear", "agents"]);
+const KNOWN_VET_IMPORT_COLUMNS = new Set([
+  "name", "position", "hometown", "draft year", "draftyear",
+  "free agency year", "freeagencyyear", "fa year", "fayear",
+  "projected value", "projected $$$", "projectedvalue",
+  "current agent", "currentagent", "current agency", "currentagency",
+  "assigned agent", "assignedagent",
+  "date of birth", "dob", "dateofbirth",
+  "meetings", "notes",
+]);
+
+function parseExcelDate(val) {
+  if (val === null || val === undefined || val === "") return null;
+  if (val instanceof Date) return val.toISOString().slice(0, 10);
+  if (typeof val === "number") {
+    const utcDays = Math.floor(val - 25569);
+    const date = new Date(utcDays * 86400 * 1000);
+    return isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(String(val).trim());
+  return isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+function normalizeProjectedValue(raw) {
+  if (!raw) return null;
+  let v = String(raw).trim();
+  if (!v) return null;
+  if (PROJECTED_VALUES.includes(v)) return v;
+  const match = v.match(/\d+/);
+  if (!match) return null;
+  const candidate = `$${match[0]}m+`;
+  return PROJECTED_VALUES.includes(candidate) ? candidate : null;
+}
 
 const COLORS = {
   bg: "#15171A",
@@ -119,6 +151,7 @@ export default function DraftBoard({ session }) {
   const [pwDraft, setPwDraft] = useState({ pw1: "", pw2: "" });
   const [pwMsg, setPwMsg] = useState("");
   const fileInputRef = useRef(null);
+  const vetFileInputRef = useRef(null);
 
   const isVetView = year === "VET";
 
@@ -430,6 +463,100 @@ export default function DraftBoard({ session }) {
     e.target.value = "";
   }
 
+  async function handleImportVetFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    setImportSummary(null);
+    setErrorMsg("");
+
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const skipped = [];
+      const vetRows = [];
+
+      rows.forEach((row, idx) => {
+        const keys = Object.keys(row);
+        const keyMap = {};
+        keys.forEach((k) => (keyMap[normalizeHeader(k)] = k));
+
+        const nameKey = keyMap["name"];
+        const posKey = keyMap["position"];
+        const hometownKey = keyMap["hometown"];
+        const draftYearKey = keyMap["draft year"] || keyMap["draftyear"];
+        const faYearKey = keyMap["free agency year"] || keyMap["freeagencyyear"] || keyMap["fa year"] || keyMap["fayear"];
+        const projValKey = keyMap["projected value"] || keyMap["projected $$$"] || keyMap["projectedvalue"];
+        const currentAgentKey = keyMap["current agent"] || keyMap["currentagent"];
+        const currentAgencyKey = keyMap["current agency"] || keyMap["currentagency"];
+        const assignedAgentKey = keyMap["assigned agent"] || keyMap["assignedagent"];
+        const dobKey = keyMap["date of birth"] || keyMap["dob"] || keyMap["dateofbirth"];
+        const meetingsKey = keyMap["meetings"];
+        const notesKey = keyMap["notes"];
+
+        const name = nameKey ? String(row[nameKey]).trim() : "";
+        const positionRaw = posKey ? String(row[posKey]).trim().toUpperCase() : "";
+
+        if (!name) {
+          skipped.push({ row: idx + 2, reason: "Missing name" });
+          return;
+        }
+        const rowBoard = POSITION_BOARD[positionRaw];
+        if (!rowBoard) {
+          skipped.push({ row: idx + 2, reason: `Unrecognized position "${positionRaw}" for ${name}` });
+          return;
+        }
+
+        const draftYearNum = draftYearKey ? parseInt(row[draftYearKey], 10) : NaN;
+        const faYearNum = faYearKey ? parseInt(row[faYearKey], 10) : NaN;
+
+        vetRows.push({
+          name,
+          position: positionRaw,
+          board: rowBoard,
+          hometown: hometownKey ? String(row[hometownKey]).trim() : "",
+          draft_year: Number.isFinite(draftYearNum) ? draftYearNum : null,
+          free_agency_year: Number.isFinite(faYearNum) ? faYearNum : null,
+          projected_value: projValKey ? normalizeProjectedValue(row[projValKey]) : null,
+          current_agent: currentAgentKey ? String(row[currentAgentKey]).trim() : "",
+          current_agency: currentAgencyKey ? String(row[currentAgencyKey]).trim() : "",
+          assigned_agent: assignedAgentKey ? String(row[assignedAgentKey]).trim() : "",
+          date_of_birth: dobKey ? parseExcelDate(row[dobKey]) : null,
+          meetings: meetingsKey ? String(row[meetingsKey]).trim() : "",
+          notes: notesKey ? String(row[notesKey]).trim() : "",
+          created_by: session.user.id,
+        });
+      });
+
+      if (vetRows.length > 0) {
+        const { error: vetErr } = await supabase.from("vets").insert(vetRows);
+        if (vetErr) {
+          setErrorMsg("Import failed while saving players: " + vetErr.message);
+          setImporting(false);
+          e.target.value = "";
+          return;
+        }
+      }
+
+      await fetchVets();
+      setImportSummary({
+        kind: "vet",
+        prospectCount: vetRows.length,
+        gradeCount: 0,
+        skipped,
+        year: "VET",
+      });
+    } catch (err) {
+      setErrorMsg("Couldn't read that file. Make sure it's a valid .xlsx or .csv.");
+    }
+
+    setImporting(false);
+    e.target.value = "";
+  }
+
   async function handleSetPassword() {
     setPwMsg("");
     if (pwDraft.pw1.length < 6) {
@@ -645,7 +772,26 @@ export default function DraftBoard({ session }) {
             style={{ width: "180px", marginLeft: "auto" }}
           />
 
-          {!isVetView && (
+          {isVetView ? (
+            <>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                ref={vetFileInputRef}
+                onChange={handleImportVetFile}
+                style={{ display: "none" }}
+              />
+              <button
+                className="db-btn"
+                onClick={() => vetFileInputRef.current && vetFileInputRef.current.click()}
+                disabled={importing}
+                title="Columns: Name, Position, Hometown, Draft Year, Free Agency Year, Projected Value, Current Agent, Current Agency, Assigned Agent, Date of Birth, Meetings, Notes."
+                style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+              >
+                {importing ? "Importing…" : "Upload Excel"}
+              </button>
+            </>
+          ) : (
             <>
               <input
                 type="file"
@@ -684,8 +830,16 @@ export default function DraftBoard({ session }) {
             }}
           >
             <div style={{ color: COLORS.ink, marginBottom: importSummary.skipped.length ? "6px" : 0 }}>
-              Imported {importSummary.prospectCount} prospect{importSummary.prospectCount === 1 ? "" : "s"} and{" "}
-              {importSummary.gradeCount} grade{importSummary.gradeCount === 1 ? "" : "s"} into the {importSummary.year} class.
+              {importSummary.kind === "vet" ? (
+                <>
+                  Imported {importSummary.prospectCount} player{importSummary.prospectCount === 1 ? "" : "s"} to the VET board.
+                </>
+              ) : (
+                <>
+                  Imported {importSummary.prospectCount} prospect{importSummary.prospectCount === 1 ? "" : "s"} and{" "}
+                  {importSummary.gradeCount} grade{importSummary.gradeCount === 1 ? "" : "s"} into the {importSummary.year} class.
+                </>
+              )}
               {importSummary.skipped.length > 0 && ` ${importSummary.skipped.length} row(s) skipped:`}
             </div>
             {importSummary.skipped.length > 0 && (
@@ -880,19 +1034,19 @@ export default function DraftBoard({ session }) {
                                     onChange={(e) => {
                                       const newPos = e.target.value;
                                       updateProspect(p.id, { position: newPos, board: POSITION_BOARD[newPos] });
-                                  }}
-                                >
-                                  <optgroup label="Offense">
-                                    {OFFENSE_POSITIONS.map((op) => (
-                                      <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
-                                    ))}
-                                  </optgroup>
-                                  <optgroup label="Defense">
-                                    {DEFENSE_POSITIONS.map((dp) => (
-                                      <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
-                                    ))}
-                                  </optgroup>
-                                </select>
+                                    }}
+                                  >
+                                    <optgroup label="Offense">
+                                      {OFFENSE_POSITIONS.map((op) => (
+                                        <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="Defense">
+                                      {DEFENSE_POSITIONS.map((dp) => (
+                                        <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
+                                      ))}
+                                    </optgroup>
+                                  </select>
                                 </div>
                                 <div style={{ flex: 1 }}>
                                   <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft class</label>
@@ -975,7 +1129,7 @@ export default function DraftBoard({ session }) {
                                 <button className="db-btn" onClick={() => addGrade(p.id)} style={{ padding: "0 8px" }}>
                                   +
                                 </button>
-                                </div>
+                              </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginTop: "10px", marginBottom: "3px" }}>Meetings</label>
                               <input
@@ -1072,7 +1226,7 @@ export default function DraftBoard({ session }) {
                             </div>
                           </div>
 
-                          {(isOpen && (
+                          {isOpen && (
                             <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
                               <label
                                 style={{
@@ -1245,7 +1399,7 @@ export default function DraftBoard({ session }) {
                                 Remove player
                               </button>
                             </div>
-                          ))}
+                          )}
                         </div>
                       );
                     })}
