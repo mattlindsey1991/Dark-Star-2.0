@@ -27,6 +27,14 @@ const YEARS = [2027, 2028, 2029, 2030, 2031];
 const ENTRY_YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
 const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8, 6.3, 6.8, 7.3, 7.8, 8.0, 8.5, 9.0];
 
+const VET_DRAFT_YEARS = [];
+for (let y = 2031; y >= 2000; y--) VET_DRAFT_YEARS.push(y);
+
+const FA_YEARS = [];
+for (let y = 2025; y <= 2035; y++) FA_YEARS.push(y);
+
+const PROJECTED_VALUES = ["$5m+", "$10m+", "$15m+", "$20m+", "$25m+", "$30m+", "$35m+", "$40m+", "$45m+", "$50m+"];
+
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
 DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
@@ -54,6 +62,8 @@ const COLORS = {
   tierRedText: "#FCEDED",
   tierBlack: "#0D0E10",
   tierBlackText: "#ECE7DC",
+  vetGreen: "#2E7D4F",
+  vetGreenText: "#EAF6EC",
 };
 
 function computeAvg(grades) {
@@ -75,8 +85,24 @@ function fmtGrade(avg) {
   return avg === null ? "—" : avg.toFixed(1);
 }
 
+function projectedValueNum(v) {
+  if (!v) return -1;
+  const match = String(v).match(/\d+/);
+  return match ? parseInt(match[0], 10) : -1;
+}
+
+function calcAge(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob + "T00:00:00");
+  if (isNaN(birth.getTime())) return null;
+  const now = new Date();
+  const years = (now - birth) / (365.25 * 24 * 3600 * 1000);
+  return years.toFixed(1);
+}
+
 export default function DraftBoard({ session }) {
   const [prospects, setProspects] = useState([]);
+  const [vets, setVets] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [board, setBoard] = useState("OFFENSE");
   const [year, setYear] = useState(2027);
@@ -84,6 +110,7 @@ export default function DraftBoard({ session }) {
   const [expandedId, setExpandedId] = useState(null);
   const [addOpenFor, setAddOpenFor] = useState(null);
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
+  const [vetDraft, setVetDraft] = useState({ name: "", hometown: "", draftYear: 2024 });
   const [gradeDraft, setGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
@@ -92,6 +119,8 @@ export default function DraftBoard({ session }) {
   const [pwDraft, setPwDraft] = useState({ pw1: "", pw2: "" });
   const [pwMsg, setPwMsg] = useState("");
   const fileInputRef = useRef(null);
+
+  const isVetView = year === "VET";
 
   const fetchAll = useCallback(async () => {
     const { data, error } = await supabase
@@ -107,17 +136,31 @@ export default function DraftBoard({ session }) {
     setLoaded(true);
   }, []);
 
+  const fetchVets = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("vets")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) {
+      setErrorMsg("Couldn't load the vet board. Try refreshing.");
+    } else {
+      setVets(data);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAll();
+    fetchVets();
 
     const channel = supabase
       .channel("draft-board-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "prospects" }, fetchAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "grades" }, fetchAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vets" }, fetchVets)
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [fetchAll]);
+  }, [fetchAll, fetchVets]);
 
   const positions = board === "OFFENSE" ? OFFENSE_POSITIONS : DEFENSE_POSITIONS;
 
@@ -147,14 +190,34 @@ export default function DraftBoard({ session }) {
     return map;
   }, [prospects, positions, year, search]);
 
-  const totalCount = useMemo(
-    () => Object.values(grouped).reduce((a, list) => a + list.length, 0),
-    [grouped]
-  );
+  const groupedVets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const map = {};
+    positions.forEach((p) => (map[p.abbr] = []));
+    vets
+      .filter((v) => map[v.position] !== undefined)
+      .filter(
+        (v) =>
+          !q ||
+          v.name.toLowerCase().includes(q) ||
+          (v.hometown || "").toLowerCase().includes(q)
+      )
+      .forEach((v) => map[v.position].push(v));
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => projectedValueNum(b.projected_value) - projectedValueNum(a.projected_value));
+    });
+    return map;
+  }, [vets, positions, search]);
+
+  const totalCount = useMemo(() => {
+    const src = isVetView ? groupedVets : grouped;
+    return Object.values(src).reduce((a, list) => a + list.length, 0);
+  }, [grouped, groupedVets, isVetView]);
 
   function openAdd(posAbbr) {
     setAddOpenFor(posAbbr);
     setAddDraft({ name: "", school: "", entryYear: 2024 });
+    setVetDraft({ name: "", hometown: "", draftYear: 2024 });
   }
 
   async function submitAdd(posAbbr) {
@@ -182,9 +245,38 @@ export default function DraftBoard({ session }) {
     setExpandedId(data.id);
   }
 
+  async function submitAddVet(posAbbr) {
+    if (!vetDraft.name.trim()) return;
+    const { data, error } = await supabase
+      .from("vets")
+      .insert({
+        name: vetDraft.name.trim(),
+        position: posAbbr,
+        board,
+        hometown: vetDraft.hometown.trim(),
+        draft_year: Number(vetDraft.draftYear),
+        created_by: session.user.id,
+      })
+      .select()
+      .single();
+    if (error) {
+      setErrorMsg("Couldn't add that player. Try again.");
+      return;
+    }
+    setVets((prev) => [...prev, data]);
+    setAddOpenFor(null);
+    setExpandedId(data.id);
+  }
+
   async function updateProspect(id, patch) {
     setProspects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
     const { error } = await supabase.from("prospects").update(patch).eq("id", id);
+    if (error) setErrorMsg("That change didn't save. Try again.");
+  }
+
+  async function updateVet(id, patch) {
+    setVets((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+    const { error } = await supabase.from("vets").update(patch).eq("id", id);
     if (error) setErrorMsg("That change didn't save. Try again.");
   }
 
@@ -193,6 +285,13 @@ export default function DraftBoard({ session }) {
     if (expandedId === id) setExpandedId(null);
     const { error } = await supabase.from("prospects").delete().eq("id", id);
     if (error) setErrorMsg("Couldn't remove that prospect. Try again.");
+  }
+
+  async function deleteVet(id) {
+    setVets((prev) => prev.filter((v) => v.id !== id));
+    if (expandedId === id) setExpandedId(null);
+    const { error } = await supabase.from("vets").delete().eq("id", id);
+    if (error) setErrorMsg("Couldn't remove that player. Try again.");
   }
 
   async function addGrade(id) {
@@ -522,35 +621,53 @@ export default function DraftBoard({ session }) {
                 {y}
               </button>
             ))}
+            <button
+              onClick={() => setYear("VET")}
+              className="db-btn"
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "12.5px",
+                fontWeight: 700,
+                padding: "7px 10px",
+                borderColor: isVetView ? COLORS.vetGreen : COLORS.hair,
+                color: isVetView ? COLORS.vetGreen : COLORS.inkDim,
+              }}
+            >
+              VET
+            </button>
           </div>
 
           <input
             className="db-input"
-            placeholder="Search name or school"
+            placeholder={isVetView ? "Search name or hometown" : "Search name or school"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: "180px", marginLeft: "auto" }}
           />
 
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            ref={fileInputRef}
-            onChange={handleImportFile}
-            style={{ display: "none" }}
-          />
-          <button
-            className="db-btn"
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            disabled={importing}
-            title={`Imports into the ${year} class. Columns: Name, Position, School, Entry Year, Agents, plus any scout columns.`}
-            style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
-          >
-            {importing ? "Importing…" : "Upload Excel"}
-          </button>
+          {!isVetView && (
+            <>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                ref={fileInputRef}
+                onChange={handleImportFile}
+                style={{ display: "none" }}
+              />
+              <button
+                className="db-btn"
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                disabled={importing}
+                title={`Imports into the ${year} class. Columns: Name, Position, School, Entry Year, Agents, plus any scout columns.`}
+                style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+              >
+                {importing ? "Importing…" : "Upload Excel"}
+              </button>
+            </>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
-            {totalCount} prospects · {year}
+            {totalCount} {isVetView ? "players" : "prospects"} · {year}
           </div>
         </div>
 
@@ -583,22 +700,32 @@ export default function DraftBoard({ session }) {
             </button>
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "16px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
-            LOWER GRADE RANKS HIGHER
-          </span>
-          {[
-            { label: "1.0–3.49", color: COLORS.tierGreen },
-            { label: "3.5–5.49", color: COLORS.tierYellow },
-            { label: "5.5–8.99", color: COLORS.tierRed },
-            { label: "9.0", color: COLORS.tierBlack },
-          ].map((s) => (
-            <span key={s.label} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: s.color, border: "1px solid rgba(255,255,255,0.15)" }} />
-              {s.label}
+
+        {isVetView ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <span style={{ width: "9px", height: "9px", borderRadius: "3px", background: COLORS.vetGreen, border: "1px solid rgba(255,255,255,0.15)" }} />
+            <span style={{ fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+              SORTED BY PROJECTED VALUE, HIGH TO LOW
             </span>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+              LOWER GRADE RANKS HIGHER
+            </span>
+            {[
+              { label: "1.0–3.49", color: COLORS.tierGreen },
+              { label: "3.5–5.49", color: COLORS.tierYellow },
+              { label: "5.5–8.99", color: COLORS.tierRed },
+              { label: "9.0", color: COLORS.tierBlack },
+            ].map((s) => (
+              <span key={s.label} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+                <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: s.color, border: "1px solid rgba(255,255,255,0.15)" }} />
+                {s.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         {errorMsg && (
           <div style={{ fontSize: "12px", color: "#D98080", marginBottom: "12px", fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -611,7 +738,7 @@ export default function DraftBoard({ session }) {
         ) : (
           <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
             {positions.map((pos) => {
-              const list = grouped[pos.abbr] || [];
+              const list = isVetView ? (groupedVets[pos.abbr] || []) : (grouped[pos.abbr] || []);
               return (
                 <div
                   key={pos.abbr}
@@ -640,10 +767,11 @@ export default function DraftBoard({ session }) {
                   <div style={{ flex: 1 }}>
                     {list.length === 0 && addOpenFor !== pos.abbr && (
                       <div style={{ padding: "16px 14px", fontSize: "12px", color: COLORS.inkDim, lineHeight: 1.5 }}>
-                        No prospects logged for {year} yet.
+                        {isVetView ? "No players logged yet." : `No prospects logged for ${year} yet.`}
                       </div>
                     )}
-                    {list.map((p, idx) => {
+
+                    {!isVetView && list.map((p, idx) => {
                       const avg = computeAvg(p.grades);
                       const tier = gradeTier(avg);
                       const isOpen = expandedId === p.id;
@@ -861,56 +989,324 @@ export default function DraftBoard({ session }) {
                         </div>
                       );
                     })}
+
+                    {isVetView && list.map((v, idx) => {
+                      const isOpen = expandedId === v.id;
+                      const age = calcAge(v.date_of_birth);
+                      return (
+                        <div key={v.id} style={{ borderBottom: `1px solid ${COLORS.hair}` }}>
+                          <div
+                            className="db-row"
+                            onClick={() => setExpandedId(isOpen ? null : v.id)}
+                            style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", cursor: "pointer" }}
+                          >
+                            <span style={{ fontFamily: "'Anton', sans-serif", fontSize: "20px", color: COLORS.hairStrong, width: "22px" }}>
+                              {String(idx + 1).padStart(2, "0")}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: "13.5px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {v.name}
+                              </div>
+                              <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {v.hometown || "Hometown unset"}
+                              </div>
+                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {[v.current_agent, v.current_agency].filter(Boolean).join(" · ") || "No agent listed"}
+                              </div>
+                            </div>
+                            {v.is_a1 && (
+                              <span
+                                style={{
+                                  fontFamily: "'IBM Plex Mono', monospace",
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#E24C4C",
+                                  border: "1.5px solid #E24C4C",
+                                  borderRadius: "4px",
+                                  padding: "2px 5px",
+                                  flexShrink: 0,
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                A1
+                              </span>
+                            )}
+                            <div
+                              title="Projected value"
+                              style={{
+                                fontFamily: "'IBM Plex Mono', monospace",
+                                fontSize: "11.5px",
+                                fontWeight: 700,
+                                color: v.projected_value ? COLORS.vetGreenText : COLORS.inkDim,
+                                background: v.projected_value ? COLORS.vetGreen : "transparent",
+                                border: `1.5px solid ${v.projected_value ? "rgba(255,255,255,0.15)" : COLORS.ungraded}`,
+                                borderRadius: "8px",
+                                minWidth: "48px",
+                                padding: "6px 6px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transform: "rotate(-2deg)",
+                                flexShrink: 0,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {v.projected_value || "—"}
+                            </div>
+                          </div>
+
+                          {isOpen && (
+                            <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "7px",
+                                  margin: "8px 0 10px",
+                                  cursor: "pointer",
+                                  fontSize: "12px",
+                                  color: v.is_a1 ? "#E24C4C" : COLORS.inkDim,
+                                  fontWeight: v.is_a1 ? 700 : 400,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!v.is_a1}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updateVet(v.id, { is_a1: e.target.checked });
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ accentColor: "#E24C4C", width: "14px", height: "14px" }}
+                                />
+                                Mark as A1 client
+                              </label>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
+                              <select
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                value={v.position}
+                                onChange={(e) => {
+                                  const newPos = e.target.value;
+                                  updateVet(v.id, { position: newPos, board: POSITION_BOARD[newPos] });
+                                }}
+                              >
+                                <optgroup label="Offense">
+                                  {OFFENSE_POSITIONS.map((op) => (
+                                    <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Defense">
+                                  {DEFENSE_POSITIONS.map((dp) => (
+                                    <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
+                                  ))}
+                                </optgroup>
+                              </select>
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft year</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={v.draft_year || ""}
+                                    onChange={(e) => updateVet(v.id, { draft_year: Number(e.target.value) })}
+                                  >
+                                    {VET_DRAFT_YEARS.map((y) => (
+                                      <option key={y} value={y}>{y}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Free agency yr</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={v.free_agency_year || ""}
+                                    onChange={(e) => updateVet(v.id, { free_agency_year: Number(e.target.value) })}
+                                  >
+                                    <option value="">—</option>
+                                    {FA_YEARS.map((y) => (
+                                      <option key={y} value={y}>{y}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Hometown</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                defaultValue={v.hometown}
+                                onBlur={(e) => updateVet(v.id, { hometown: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Current agent</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                placeholder="e.g. J. Rosenhaus"
+                                defaultValue={v.current_agent}
+                                onBlur={(e) => updateVet(v.id, { current_agent: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Current agency</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                defaultValue={v.current_agency}
+                                onBlur={(e) => updateVet(v.id, { current_agency: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Assigned agent</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                placeholder="A1 agent assigned to pursue"
+                                defaultValue={v.assigned_agent}
+                                onBlur={(e) => updateVet(v.id, { assigned_agent: e.target.value })}
+                              />
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Date of birth</label>
+                                  <input
+                                    type="date"
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    defaultValue={v.date_of_birth || ""}
+                                    onBlur={(e) => updateVet(v.id, { date_of_birth: e.target.value || null })}
+                                  />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Current age</label>
+                                  <div
+                                    className="db-input"
+                                    style={{ width: "100%", display: "flex", alignItems: "center", color: COLORS.inkDim, boxSizing: "border-box" }}
+                                  >
+                                    {age || "—"}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Projected $$$</label>
+                              <select
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "10px" }}
+                                value={v.projected_value || ""}
+                                onChange={(e) => updateVet(v.id, { projected_value: e.target.value || null })}
+                              >
+                                <option value="">—</option>
+                                {PROJECTED_VALUES.map((pv) => (
+                                  <option key={pv} value={pv}>{pv}</option>
+                                ))}
+                              </select>
+
+                              <button
+                                className="db-btn"
+                                onClick={(e) => { e.stopPropagation(); deleteVet(v.id); }}
+                                style={{ marginTop: "2px", fontSize: "11px", color: "#C97A7A", borderColor: "rgba(201,122,122,0.3)", padding: "5px 9px" }}
+                              >
+                                Remove player
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div style={{ padding: "10px 14px 14px" }}>
                     {addOpenFor === pos.abbr ? (
-                      <div>
-                        <input
-                          className="db-input"
-                          placeholder="Player name"
-                          style={{ width: "100%", marginBottom: "6px" }}
-                          value={addDraft.name}
-                          onChange={(e) => setAddDraft({ ...addDraft, name: e.target.value })}
-                          autoFocus
-                        />
-                        <input
-                          className="db-input"
-                          placeholder="School"
-                          style={{ width: "100%", marginBottom: "6px" }}
-                          value={addDraft.school}
-                          onChange={(e) => setAddDraft({ ...addDraft, school: e.target.value })}
-                        />
-                        <select
-                          className="db-input"
-                          style={{ width: "100%", marginBottom: "8px" }}
-                          value={addDraft.entryYear}
-                          onChange={(e) => setAddDraft({ ...addDraft, entryYear: Number(e.target.value) })}
-                        >
-                          {ENTRY_YEARS.map((ey) => (
-                            <option key={ey} value={ey}>Ent: {ey}</option>
-                          ))}
-                        </select>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <button
-                            className="db-btn"
-                            onClick={() => submitAdd(pos.abbr)}
-                            style={{ flex: 1, padding: "6px", color: accent, borderColor: accent }}
+                      isVetView ? (
+                        <div>
+                          <input
+                            className="db-input"
+                            placeholder="Player name"
+                            style={{ width: "100%", marginBottom: "6px" }}
+                            value={vetDraft.name}
+                            onChange={(e) => setVetDraft({ ...vetDraft, name: e.target.value })}
+                            autoFocus
+                          />
+                          <input
+                            className="db-input"
+                            placeholder="Hometown"
+                            style={{ width: "100%", marginBottom: "6px" }}
+                            value={vetDraft.hometown}
+                            onChange={(e) => setVetDraft({ ...vetDraft, hometown: e.target.value })}
+                          />
+                          <select
+                            className="db-input"
+                            style={{ width: "100%", marginBottom: "8px" }}
+                            value={vetDraft.draftYear}
+                            onChange={(e) => setVetDraft({ ...vetDraft, draftYear: Number(e.target.value) })}
                           >
-                            Add to board
-                          </button>
-                          <button className="db-btn" onClick={() => setAddOpenFor(null)} style={{ padding: "6px 10px" }}>
-                            ×
-                          </button>
+                            {VET_DRAFT_YEARS.map((y) => (
+                              <option key={y} value={y}>Draft: {y}</option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              className="db-btn"
+                              onClick={() => submitAddVet(pos.abbr)}
+                              style={{ flex: 1, padding: "6px", color: accent, borderColor: accent }}
+                            >
+                              Add to board
+                            </button>
+                            <button className="db-btn" onClick={() => setAddOpenFor(null)} style={{ padding: "6px 10px" }}>
+                              ×
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div>
+                          <input
+                            className="db-input"
+                            placeholder="Player name"
+                            style={{ width: "100%", marginBottom: "6px" }}
+                            value={addDraft.name}
+                            onChange={(e) => setAddDraft({ ...addDraft, name: e.target.value })}
+                            autoFocus
+                          />
+                          <input
+                            className="db-input"
+                            placeholder="School"
+                            style={{ width: "100%", marginBottom: "6px" }}
+                            value={addDraft.school}
+                            onChange={(e) => setAddDraft({ ...addDraft, school: e.target.value })}
+                          />
+                          <select
+                            className="db-input"
+                            style={{ width: "100%", marginBottom: "8px" }}
+                            value={addDraft.entryYear}
+                            onChange={(e) => setAddDraft({ ...addDraft, entryYear: Number(e.target.value) })}
+                          >
+                            {ENTRY_YEARS.map((ey) => (
+                              <option key={ey} value={ey}>Ent: {ey}</option>
+                            ))}
+                          </select>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              className="db-btn"
+                              onClick={() => submitAdd(pos.abbr)}
+                              style={{ flex: 1, padding: "6px", color: accent, borderColor: accent }}
+                            >
+                              Add to board
+                            </button>
+                            <button className="db-btn" onClick={() => setAddOpenFor(null)} style={{ padding: "6px 10px" }}>
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      )
                     ) : (
                       <button
                         className="db-btn"
                         onClick={() => openAdd(pos.abbr)}
                         style={{ width: "100%", padding: "8px", fontSize: "12px" }}
                       >
-                        + Add prospect
+                        {isVetView ? "+ Add player" : "+ Add prospect"}
                       </button>
                     )}
                   </div>
