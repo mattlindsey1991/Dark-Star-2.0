@@ -1024,6 +1024,18 @@ export default function DraftBoard({ session }) {
                                 Mark as A1 client
                               </label>
 
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Name</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px", fontWeight: 600 }}
+                                defaultValue={p.name}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (v) updateProspect(p.id, { name: v });
+                                  else e.target.value = p.name;
+                                }}
+                              />
+
                               <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                                 <div style={{ flex: 1 }}>
                                   <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
@@ -1252,6 +1264,18 @@ export default function DraftBoard({ session }) {
                                 />
                                 Mark as A1 client
                               </label>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Name</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px", fontWeight: 600 }}
+                                defaultValue={v.name}
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val) updateVet(v.id, { name: val });
+                                  else e.target.value = v.name;
+                                }}
+                              />
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
                               <select
