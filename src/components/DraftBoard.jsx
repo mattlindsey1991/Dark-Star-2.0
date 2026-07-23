@@ -1008,7 +1008,7 @@ export default function DraftBoard({ session }) {
                                 {v.name}
                               </div>
                               <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {v.hometown || "Hometown unset"}
+                                {v.free_agency_year ? `FA: ${v.free_agency_year}` : "FA year unset"}
                               </div>
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {[v.current_agent, v.current_agency].filter(Boolean).join(" · ") || "No agent listed"}
