@@ -35,6 +35,13 @@ for (let y = 2025; y <= 2035; y++) FA_YEARS.push(y);
 
 const PROJECTED_VALUES = ["$5m+", "$10m+", "$15m+", "$20m+", "$25m+", "$30m+", "$35m+", "$40m+", "$45m+", "$50m+"];
 
+const NFL_TEAMS = [
+  "ARZ", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN",
+  "DET", "FA", "GB", "HST", "IND", "JAX", "KC", "LAC", "LAR", "LVR",
+  "MIA", "MIN", "NE", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF",
+  "TB", "TEN", "WAS",
+];
+
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
 DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
@@ -487,6 +494,8 @@ export default function DraftBoard({ session }) {
         const nameKey = keyMap["name"];
         const posKey = keyMap["position"];
         const hometownKey = keyMap["hometown"];
+        const teamKey = keyMap["current team"] || keyMap["currentteam"] || keyMap["team"] || keyMap["nfl team"];
+        const collegeKey = keyMap["college"];
         const draftYearKey = keyMap["draft year"] || keyMap["draftyear"];
         const faYearKey = keyMap["free agency year"] || keyMap["freeagencyyear"] || keyMap["fa year"] || keyMap["fayear"];
         const projValKey = keyMap["projected value"] || keyMap["projected $$$"] || keyMap["projectedvalue"];
@@ -518,6 +527,8 @@ export default function DraftBoard({ session }) {
           position: positionRaw,
           board: rowBoard,
           hometown: hometownKey ? String(row[hometownKey]).trim() : "",
+          current_team: teamKey ? String(row[teamKey]).trim().toUpperCase() : null,
+          college: collegeKey ? String(row[collegeKey]).trim() : "",
           draft_year: Number.isFinite(draftYearNum) ? draftYearNum : null,
           free_agency_year: Number.isFinite(faYearNum) ? faYearNum : null,
           projected_value: projValKey ? normalizeProjectedValue(row[projValKey]) : null,
@@ -584,6 +595,8 @@ export default function DraftBoard({ session }) {
           rows.push({
             Name: v.name,
             Position: v.position,
+            "Current Team": v.current_team || "",
+            College: v.college || "",
             "Draft Year": v.draft_year || "",
             "Free Agency Year": v.free_agency_year || "",
             Hometown: v.hometown || "",
@@ -853,7 +866,7 @@ export default function DraftBoard({ session }) {
                 className="db-btn no-print"
                 onClick={() => vetFileInputRef.current && vetFileInputRef.current.click()}
                 disabled={importing}
-                title="Columns: Name, Position, Hometown, Draft Year, Free Agency Year, Projected Value, Current Agent, Current Agency, Assigned Agent, Date of Birth, Meetings, Notes."
+                title="Columns: Name, Position, Hometown, Current Team, College, Draft Year, Free Agency Year, Projected Value, Current Agent, Current Agency, Assigned Agent, Date of Birth, Meetings, Notes."
                 style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
               >
                 {importing ? "Importing…" : "Upload Excel"}
@@ -1279,7 +1292,7 @@ export default function DraftBoard({ session }) {
                                 {v.name}
                               </div>
                               <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {v.free_agency_year ? `FA: ${v.free_agency_year}` : "FA year unset"}
+                                {[v.current_team, v.free_agency_year ? `FA: ${v.free_agency_year}` : "FA year unset"].filter(Boolean).join(" · ")}
                               </div>
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {[v.current_agent, v.current_agency].filter(Boolean).join(" · ") || "No agent listed"}
@@ -1424,6 +1437,32 @@ export default function DraftBoard({ session }) {
                                 defaultValue={v.hometown}
                                 onBlur={(e) => updateVet(v.id, { hometown: e.target.value })}
                               />
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Current team</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={v.current_team || ""}
+                                    onChange={(e) => updateVet(v.id, { current_team: e.target.value || null })}
+                                  >
+                                    <option value="">—</option>
+                                    {NFL_TEAMS.map((t) => (
+                                      <option key={t} value={t}>{t}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>College</label>
+                                  <input
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    defaultValue={v.college}
+                                    onBlur={(e) => updateVet(v.id, { college: e.target.value })}
+                                  />
+                                </div>
+                              </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Current agent</label>
                               <input
