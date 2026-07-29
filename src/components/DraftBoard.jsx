@@ -576,6 +576,62 @@ export default function DraftBoard({ session }) {
     setPwDraft({ pw1: "", pw2: "" });
   }
 
+  function handleExportExcel() {
+    const rows = [];
+    if (isVetView) {
+      positions.forEach((pos) => {
+        (groupedVets[pos.abbr] || []).forEach((v) => {
+          rows.push({
+            Name: v.name,
+            Position: v.position,
+            "Draft Year": v.draft_year || "",
+            "Free Agency Year": v.free_agency_year || "",
+            Hometown: v.hometown || "",
+            "Current Agent": v.current_agent || "",
+            "Current Agency": v.current_agency || "",
+            "Assigned Agent": v.assigned_agent || "",
+            "Date of Birth": v.date_of_birth || "",
+            Age: calcAge(v.date_of_birth) || "",
+            "Projected Value": v.projected_value || "",
+            "A1 Client": v.is_a1 ? "Yes" : "No",
+            Meetings: v.meetings || "",
+            Notes: v.notes || "",
+          });
+        });
+      });
+    } else {
+      positions.forEach((pos) => {
+        (grouped[pos.abbr] || []).forEach((p) => {
+          const avg = computeAvg(p.grades);
+          rows.push({
+            Name: p.name,
+            Position: p.position,
+            School: p.school || "",
+            "Draft Class": p.draft_class_year,
+            "Entry Year": p.entry_year || "",
+            Agents: p.agents || "",
+            "A1 Client": p.is_a1 ? "Yes" : "No",
+            "Avg Grade": avg !== null ? avg.toFixed(1) : "",
+            Grades: (p.grades || [])
+              .map((g) => `${g.scout}: ${Number(g.grade).toFixed(1)}`)
+              .join("; "),
+            Meetings: p.meetings || "",
+            Notes: p.notes || "",
+          });
+        });
+      });
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    const sheetName = isVetView ? "VET" : `${board} ${year}`;
+    XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
+    const filename = isVetView
+      ? "BigBoard_VET.xlsx"
+      : `BigBoard_${board}_${year}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
   const accent = board === "OFFENSE" ? COLORS.offense : COLORS.defense;
 
   return (
@@ -613,9 +669,20 @@ export default function DraftBoard({ session }) {
           transition: all 0.12s ease;
         }
         .db-btn:hover { border-color: ${COLORS.hairStrong}; color: ${COLORS.ink}; }
+
+        @media print {
+          @page { size: landscape; margin: 10mm; }
+          .no-print { display: none !important; }
+          body, #root, * { background: transparent !important; box-shadow: none !important; }
+          body { background: #ffffff !important; }
+          * { color: #111111 !important; border-color: #ccc !important; }
+          .board-columns { flex-wrap: wrap !important; overflow: visible !important; gap: 8px !important; }
+          .board-column { page-break-inside: avoid; min-width: 200px !important; max-width: 220px !important; }
+        }
       `}</style>
 
       <div
+        className="no-print"
         style={{
           position: "absolute",
           top: "-40px",
@@ -649,7 +716,7 @@ export default function DraftBoard({ session }) {
               {session.user.email}
             </span>
           </div>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div className="no-print" style={{ display: "flex", gap: "8px" }}>
             <button className="db-btn" onClick={() => setPwOpen((v) => !v)} style={{ padding: "7px 12px", fontSize: "12px" }}>
               {pwOpen ? "Close" : "Set password"}
             </button>
@@ -661,6 +728,7 @@ export default function DraftBoard({ session }) {
 
         {pwOpen && (
           <div
+            className="no-print"
             style={{
               background: COLORS.surfaceHi,
               border: `1px solid ${COLORS.hair}`,
@@ -765,7 +833,7 @@ export default function DraftBoard({ session }) {
           </div>
 
           <input
-            className="db-input"
+            className="db-input no-print"
             placeholder={isVetView ? "Search name or hometown" : "Search name or school"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -782,7 +850,7 @@ export default function DraftBoard({ session }) {
                 style={{ display: "none" }}
               />
               <button
-                className="db-btn"
+                className="db-btn no-print"
                 onClick={() => vetFileInputRef.current && vetFileInputRef.current.click()}
                 disabled={importing}
                 title="Columns: Name, Position, Hometown, Draft Year, Free Agency Year, Projected Value, Current Agent, Current Agency, Assigned Agent, Date of Birth, Meetings, Notes."
@@ -801,7 +869,7 @@ export default function DraftBoard({ session }) {
                 style={{ display: "none" }}
               />
               <button
-                className="db-btn"
+                className="db-btn no-print"
                 onClick={() => fileInputRef.current && fileInputRef.current.click()}
                 disabled={importing}
                 title={`Imports into the ${year} class. Columns: Name, Position, School, Entry Year, Agents, plus any scout columns.`}
@@ -812,6 +880,24 @@ export default function DraftBoard({ session }) {
             </>
           )}
 
+          <button
+            className="db-btn no-print"
+            onClick={handleExportExcel}
+            title="Exports the players currently shown (this board/year or VET tab) with all their info."
+            style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+          >
+            Export Excel
+          </button>
+
+          <button
+            className="db-btn no-print"
+            onClick={() => window.print()}
+            title="Opens the print dialog. Choose 'Save as PDF' for a printable one-page copy of this view."
+            style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+          >
+            Print / PDF
+          </button>
+
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
             {totalCount} {isVetView ? "players" : "prospects"} · {year}
           </div>
@@ -819,6 +905,7 @@ export default function DraftBoard({ session }) {
 
         {importSummary && (
           <div
+            className="no-print"
             style={{
               background: COLORS.surfaceHi,
               border: `1px solid ${COLORS.hair}`,
@@ -890,12 +977,13 @@ export default function DraftBoard({ session }) {
         {!loaded ? (
           <div style={{ color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px" }}>Loading board…</div>
         ) : (
-          <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
+          <div className="board-columns" style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
             {positions.map((pos) => {
               const list = isVetView ? (groupedVets[pos.abbr] || []) : (grouped[pos.abbr] || []);
               return (
                 <div
                   key={pos.abbr}
+                  className="board-column"
                   style={{
                     minWidth: "270px",
                     maxWidth: "270px",
@@ -991,7 +1079,7 @@ export default function DraftBoard({ session }) {
                           </div>
 
                           {isOpen && (
-                            <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
+                            <div className="no-print" style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
                                 <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: tier.color, border: tier.filled ? "1px solid rgba(255,255,255,0.15)" : "none", flexShrink: 0 }} />
                                 <span style={{ fontSize: "10.5px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -1239,7 +1327,7 @@ export default function DraftBoard({ session }) {
                           </div>
 
                           {isOpen && (
-                            <div style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
+                            <div className="no-print" style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
                               <label
                                 style={{
                                   display: "flex",
@@ -1429,7 +1517,7 @@ export default function DraftBoard({ session }) {
                     })}
                   </div>
 
-                  <div style={{ padding: "10px 14px 14px" }}>
+                  <div className="no-print" style={{ padding: "10px 14px 14px" }}>
                     {addOpenFor === pos.abbr ? (
                       isVetView ? (
                         <div>
