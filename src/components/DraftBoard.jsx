@@ -42,6 +42,17 @@ const NFL_TEAMS = [
   "TB", "TEN", "WAS",
 ];
 
+const DRAFT_ROUNDS = ["1", "2", "3", "4", "5", "6", "7", "UDFA"];
+
+const BB_POSITIONS = [
+  { abbr: "PG", name: "Point guard" },
+  { abbr: "SG", name: "Shooting guard" },
+  { abbr: "SF", name: "Small forward" },
+  { abbr: "PF", name: "Power forward" },
+  { abbr: "C", name: "Center" },
+];
+const BB_YEARS = [2027, 2028, 2029, 2030, 2031, 2032];
+
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
 DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
@@ -142,6 +153,9 @@ function calcAge(dob) {
 export default function DraftBoard({ session }) {
   const [prospects, setProspects] = useState([]);
   const [vets, setVets] = useState([]);
+  const [bbProspects, setBbProspects] = useState([]);
+  const [sport, setSport] = useState("FOOTBALL");
+  const [bbYear, setBbYear] = useState(2027);
   const [loaded, setLoaded] = useState(false);
   const [board, setBoard] = useState("OFFENSE");
   const [year, setYear] = useState(2027);
@@ -149,8 +163,10 @@ export default function DraftBoard({ session }) {
   const [expandedId, setExpandedId] = useState(null);
   const [addOpenFor, setAddOpenFor] = useState(null);
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
+  const [bbAddDraft, setBbAddDraft] = useState({ name: "", school: "" });
   const [vetDraft, setVetDraft] = useState({ name: "", hometown: "", draftYear: 2024 });
   const [gradeDraft, setGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
+  const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState(null);
@@ -159,8 +175,10 @@ export default function DraftBoard({ session }) {
   const [pwMsg, setPwMsg] = useState("");
   const fileInputRef = useRef(null);
   const vetFileInputRef = useRef(null);
+  const bbFileInputRef = useRef(null);
 
-  const isVetView = year === "VET";
+  const isVetView = year === "VET" && sport === "FOOTBALL";
+  const isBasketball = sport === "BASKETBALL";
 
   const fetchAll = useCallback(async () => {
     const { data, error } = await supabase
@@ -188,21 +206,36 @@ export default function DraftBoard({ session }) {
     }
   }, []);
 
+  const fetchBB = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("bb_prospects")
+      .select("*, bb_grades(*)")
+      .order("created_at", { ascending: true });
+    if (error) {
+      setErrorMsg("Couldn't load the basketball board. Try refreshing.");
+    } else {
+      setBbProspects(data);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAll();
     fetchVets();
+    fetchBB();
 
     const channel = supabase
       .channel("draft-board-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "prospects" }, fetchAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "grades" }, fetchAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "vets" }, fetchVets)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bb_prospects" }, fetchBB)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bb_grades" }, fetchBB)
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [fetchAll, fetchVets]);
+  }, [fetchAll, fetchVets, fetchBB]);
 
-  const positions = board === "OFFENSE" ? OFFENSE_POSITIONS : DEFENSE_POSITIONS;
+  const positions = isBasketball ? BB_POSITIONS : (board === "OFFENSE" ? OFFENSE_POSITIONS : DEFENSE_POSITIONS);
 
   const grouped = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -249,15 +282,42 @@ export default function DraftBoard({ session }) {
     return map;
   }, [vets, positions, search]);
 
+  const bbGrouped = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const map = {};
+    BB_POSITIONS.forEach((p) => (map[p.abbr] = []));
+    bbProspects
+      .filter((bp) => bp.class_year === bbYear && map[bp.position] !== undefined)
+      .filter(
+        (bp) =>
+          !q ||
+          bp.name.toLowerCase().includes(q) ||
+          (bp.school || "").toLowerCase().includes(q)
+      )
+      .forEach((bp) => map[bp.position].push(bp));
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => {
+        const av = computeAvg(a.bb_grades);
+        const bv = computeAvg(b.bb_grades);
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        return av - bv;
+      });
+    });
+    return map;
+  }, [bbProspects, bbYear, search]);
+
   const totalCount = useMemo(() => {
-    const src = isVetView ? groupedVets : grouped;
+    const src = isBasketball ? bbGrouped : (isVetView ? groupedVets : grouped);
     return Object.values(src).reduce((a, list) => a + list.length, 0);
-  }, [grouped, groupedVets, isVetView]);
+  }, [grouped, groupedVets, bbGrouped, isVetView, isBasketball]);
 
   function openAdd(posAbbr) {
     setAddOpenFor(posAbbr);
     setAddDraft({ name: "", school: "", entryYear: 2024 });
     setVetDraft({ name: "", hometown: "", draftYear: 2024 });
+    setBbAddDraft({ name: "", school: "" });
   }
 
   async function submitAdd(posAbbr) {
@@ -306,6 +366,70 @@ export default function DraftBoard({ session }) {
     setVets((prev) => [...prev, data]);
     setAddOpenFor(null);
     setExpandedId(data.id);
+  }
+
+  async function submitAddBB(posAbbr) {
+    if (!bbAddDraft.name.trim()) return;
+    const { data, error } = await supabase
+      .from("bb_prospects")
+      .insert({
+        name: bbAddDraft.name.trim(),
+        position: posAbbr,
+        class_year: bbYear,
+        school: bbAddDraft.school.trim(),
+        agents: "",
+        created_by: session.user.id,
+      })
+      .select()
+      .single();
+    if (error) {
+      setErrorMsg("Couldn't add that prospect. Try again.");
+      return;
+    }
+    setBbProspects((prev) => [...prev, { ...data, bb_grades: [] }]);
+    setAddOpenFor(null);
+    setExpandedId(data.id);
+  }
+
+  async function updateBBProspect(id, patch) {
+    setBbProspects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    const { error } = await supabase.from("bb_prospects").update(patch).eq("id", id);
+    if (error) setErrorMsg("That change didn't save. Try again.");
+  }
+
+  async function deleteBBProspect(id) {
+    setBbProspects((prev) => prev.filter((p) => p.id !== id));
+    if (expandedId === id) setExpandedId(null);
+    const { error } = await supabase.from("bb_prospects").delete().eq("id", id);
+    if (error) setErrorMsg("Couldn't remove that prospect. Try again.");
+  }
+
+  async function addBBGrade(id) {
+    const g = parseFloat(bbGradeDraft.grade);
+    if (!bbGradeDraft.scout.trim() || isNaN(g) || !GRADE_SCALE.includes(g)) return;
+    const { data, error } = await supabase
+      .from("bb_grades")
+      .insert({ prospect_id: id, scout: bbGradeDraft.scout.trim(), grade: g, created_by: session.user.id })
+      .select()
+      .single();
+    if (error) {
+      setErrorMsg("Couldn't save that grade. Try again.");
+      return;
+    }
+    setBbProspects((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, bb_grades: [...(p.bb_grades || []), data] } : p))
+    );
+    setBbGradeDraft({ scout: "", grade: GRADE_SCALE[0] });
+  }
+
+  async function deleteBBGrade(prospectId, gradeId) {
+    setBbProspects((prev) =>
+      prev.map((p) =>
+        p.id === prospectId ? { ...p, bb_grades: p.bb_grades.filter((g) => g.id !== gradeId) } : p
+      )
+    );
+    const { error } = await supabase.from("bb_grades").delete().eq("id", gradeId);
+    if (error) setErrorMsg("Couldn't remove that grade. Try again.");
   }
 
   async function updateProspect(id, patch) {
@@ -496,6 +620,7 @@ export default function DraftBoard({ session }) {
         const hometownKey = keyMap["hometown"];
         const teamKey = keyMap["current team"] || keyMap["currentteam"] || keyMap["team"] || keyMap["nfl team"];
         const collegeKey = keyMap["college"];
+        const draftRoundKey = keyMap["draft round"] || keyMap["draftround"];
         const draftYearKey = keyMap["draft year"] || keyMap["draftyear"];
         const faYearKey = keyMap["free agency year"] || keyMap["freeagencyyear"] || keyMap["fa year"] || keyMap["fayear"];
         const projValKey = keyMap["projected value"] || keyMap["projected $$$"] || keyMap["projectedvalue"];
@@ -528,6 +653,7 @@ export default function DraftBoard({ session }) {
           board: rowBoard,
           hometown: hometownKey ? String(row[hometownKey]).trim() : "",
           current_team: teamKey ? String(row[teamKey]).trim().toUpperCase() : null,
+          draft_round: draftRoundKey ? String(row[draftRoundKey]).trim() : null,
           college: collegeKey ? String(row[collegeKey]).trim() : "",
           draft_year: Number.isFinite(draftYearNum) ? draftYearNum : null,
           free_agency_year: Number.isFinite(faYearNum) ? faYearNum : null,
@@ -568,6 +694,89 @@ export default function DraftBoard({ session }) {
     e.target.value = "";
   }
 
+  const BB_POSITION_SET = new Set(BB_POSITIONS.map((p) => p.abbr));
+
+  async function handleImportBBFile(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setImporting(true);
+    setImportSummary(null);
+    setErrorMsg("");
+
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const skipped = [];
+      const bbRows = [];
+
+      rows.forEach((row, idx) => {
+        const keys = Object.keys(row);
+        const keyMap = {};
+        keys.forEach((k) => (keyMap[normalizeHeader(k)] = k));
+
+        const nameKey = keyMap["name"];
+        const posKey = keyMap["position"];
+        const schoolKey = keyMap["school"];
+        const classYearKey = keyMap["class year"] || keyMap["classyear"];
+        const agentsKey = keyMap["agents"];
+        const meetingsKey = keyMap["meetings"];
+        const notesKey = keyMap["notes"];
+
+        const name = nameKey ? String(row[nameKey]).trim() : "";
+        const positionRaw = posKey ? String(row[posKey]).trim().toUpperCase() : "";
+
+        if (!name) {
+          skipped.push({ row: idx + 2, reason: "Missing name" });
+          return;
+        }
+        if (!BB_POSITION_SET.has(positionRaw)) {
+          skipped.push({ row: idx + 2, reason: `Unrecognized position "${positionRaw}" for ${name}` });
+          return;
+        }
+
+        const classYearNum = classYearKey ? parseInt(row[classYearKey], 10) : bbYear;
+
+        bbRows.push({
+          name,
+          position: positionRaw,
+          class_year: Number.isFinite(classYearNum) ? classYearNum : bbYear,
+          school: schoolKey ? String(row[schoolKey]).trim() : "",
+          agents: agentsKey ? String(row[agentsKey]).trim() : "",
+          meetings: meetingsKey ? String(row[meetingsKey]).trim() : "",
+          notes: notesKey ? String(row[notesKey]).trim() : "",
+          created_by: session.user.id,
+        });
+      });
+
+      if (bbRows.length > 0) {
+        const { error: bbErr } = await supabase.from("bb_prospects").insert(bbRows);
+        if (bbErr) {
+          setErrorMsg("Import failed while saving prospects: " + bbErr.message);
+          setImporting(false);
+          e.target.value = "";
+          return;
+        }
+      }
+
+      await fetchBB();
+      setImportSummary({
+        kind: "bb",
+        prospectCount: bbRows.length,
+        gradeCount: 0,
+        skipped,
+        year: bbYear,
+      });
+    } catch (err) {
+      setErrorMsg("Couldn't read that file. Make sure it's a valid .xlsx or .csv.");
+    }
+
+    setImporting(false);
+    e.target.value = "";
+  }
+
   async function handleSetPassword() {
     setPwMsg("");
     if (pwDraft.pw1.length < 6) {
@@ -589,13 +798,34 @@ export default function DraftBoard({ session }) {
 
   function handleExportExcel() {
     const rows = [];
-    if (isVetView) {
+    if (isBasketball) {
+      positions.forEach((pos) => {
+        (bbGrouped[pos.abbr] || []).forEach((p) => {
+          const avg = computeAvg(p.bb_grades);
+          rows.push({
+            Name: p.name,
+            Position: p.position,
+            School: p.school || "",
+            "Class Year": p.class_year,
+            Agents: p.agents || "",
+            "A1 Client": p.is_a1 ? "Yes" : "No",
+            "Avg Grade": avg !== null ? avg.toFixed(1) : "",
+            Grades: (p.bb_grades || [])
+              .map((g) => `${g.scout}: ${Number(g.grade).toFixed(1)}`)
+              .join("; "),
+            Meetings: p.meetings || "",
+            Notes: p.notes || "",
+          });
+        });
+      });
+    } else if (isVetView) {
       positions.forEach((pos) => {
         (groupedVets[pos.abbr] || []).forEach((v) => {
           rows.push({
             Name: v.name,
             Position: v.position,
             "Current Team": v.current_team || "",
+            "Draft Round": v.draft_round || "",
             College: v.college || "",
             "Draft Year": v.draft_year || "",
             "Free Agency Year": v.free_agency_year || "",
@@ -637,15 +867,17 @@ export default function DraftBoard({ session }) {
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    const sheetName = isVetView ? "VET" : `${board} ${year}`;
+    const sheetName = isBasketball ? `BB ${bbYear}` : (isVetView ? "VET" : `${board} ${year}`);
     XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-    const filename = isVetView
+    const filename = isBasketball
+      ? `BigBoard_BB_${bbYear}.xlsx`
+      : isVetView
       ? "BigBoard_VET.xlsx"
       : `BigBoard_${board}_${year}.xlsx`;
     XLSX.writeFile(wb, filename);
   }
 
-  const accent = board === "OFFENSE" ? COLORS.offense : COLORS.defense;
+  const accent = isBasketball ? "#C9973E" : (board === "OFFENSE" ? COLORS.offense : COLORS.defense);
 
   return (
     <div
@@ -792,57 +1024,99 @@ export default function DraftBoard({ session }) {
 
         <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", marginBottom: "6px" }}>
           <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
-            {["OFFENSE", "DEFENSE"].map((b) => (
+            {["FOOTBALL", "BASKETBALL"].map((s) => (
               <button
-                key={b}
-                onClick={() => setBoard(b)}
+                key={s}
+                onClick={() => { setSport(s); setExpandedId(null); setAddOpenFor(null); }}
                 style={{
                   fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: "17px",
-                  letterSpacing: "1.5px",
-                  padding: "8px 22px",
+                  fontSize: "15px",
+                  letterSpacing: "1px",
+                  padding: "8px 16px",
                   border: "none",
                   cursor: "pointer",
-                  background: board === b ? (b === "OFFENSE" ? COLORS.offenseDim : COLORS.defenseDim) : "transparent",
-                  color: board === b ? (b === "OFFENSE" ? COLORS.offense : COLORS.defense) : COLORS.inkDim,
+                  background: sport === s ? "rgba(201,151,62,0.14)" : "transparent",
+                  color: sport === s ? "#C9973E" : COLORS.inkDim,
                 }}
               >
-                {b}
+                {s}
               </button>
             ))}
           </div>
 
+          {!isBasketball && (
+            <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
+              {["OFFENSE", "DEFENSE"].map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setBoard(b)}
+                  style={{
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: "17px",
+                    letterSpacing: "1.5px",
+                    padding: "8px 22px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: board === b ? (b === "OFFENSE" ? COLORS.offenseDim : COLORS.defenseDim) : "transparent",
+                    color: board === b ? (b === "OFFENSE" ? COLORS.offense : COLORS.defense) : COLORS.inkDim,
+                  }}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: "6px" }}>
-            {YEARS.map((y) => (
+            {isBasketball
+              ? BB_YEARS.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => setBbYear(y)}
+                    className="db-btn"
+                    style={{
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontSize: "12.5px",
+                      padding: "7px 10px",
+                      borderColor: bbYear === y ? accent : COLORS.hair,
+                      color: bbYear === y ? accent : COLORS.inkDim,
+                    }}
+                  >
+                    {y}
+                  </button>
+                ))
+              : YEARS.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => setYear(y)}
+                    className="db-btn"
+                    style={{
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontSize: "12.5px",
+                      padding: "7px 10px",
+                      borderColor: year === y ? accent : COLORS.hair,
+                      color: year === y ? accent : COLORS.inkDim,
+                    }}
+                  >
+                    {y}
+                  </button>
+                ))}
+            {!isBasketball && (
               <button
-                key={y}
-                onClick={() => setYear(y)}
+                onClick={() => setYear("VET")}
                 className="db-btn"
                 style={{
                   fontFamily: "'IBM Plex Mono', monospace",
                   fontSize: "12.5px",
+                  fontWeight: 700,
                   padding: "7px 10px",
-                  borderColor: year === y ? accent : COLORS.hair,
-                  color: year === y ? accent : COLORS.inkDim,
+                  borderColor: isVetView ? COLORS.vetGreen : COLORS.hair,
+                  color: isVetView ? COLORS.vetGreen : COLORS.inkDim,
                 }}
               >
-                {y}
+                VET
               </button>
-            ))}
-            <button
-              onClick={() => setYear("VET")}
-              className="db-btn"
-              style={{
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontSize: "12.5px",
-                fontWeight: 700,
-                padding: "7px 10px",
-                borderColor: isVetView ? COLORS.vetGreen : COLORS.hair,
-                color: isVetView ? COLORS.vetGreen : COLORS.inkDim,
-              }}
-            >
-              VET
-            </button>
+            )}
           </div>
 
           <input
@@ -853,7 +1127,26 @@ export default function DraftBoard({ session }) {
             style={{ width: "180px", marginLeft: "auto" }}
           />
 
-          {isVetView ? (
+          {isBasketball ? (
+            <>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                ref={bbFileInputRef}
+                onChange={handleImportBBFile}
+                style={{ display: "none" }}
+              />
+              <button
+                className="db-btn no-print"
+                onClick={() => bbFileInputRef.current && bbFileInputRef.current.click()}
+                disabled={importing}
+                title={`Imports into the ${bbYear} class. Columns: Name, Position, School, Class Year, Agents, plus any scout columns.`}
+                style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+              >
+                {importing ? "Importing…" : "Upload Excel"}
+              </button>
+            </>
+          ) : isVetView ? (
             <>
               <input
                 type="file"
@@ -912,7 +1205,7 @@ export default function DraftBoard({ session }) {
           </button>
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
-            {totalCount} {isVetView ? "players" : "prospects"} · {year}
+            {totalCount} {isVetView ? "players" : "prospects"} · {isBasketball ? bbYear : year}
           </div>
         </div>
 
@@ -933,6 +1226,10 @@ export default function DraftBoard({ session }) {
               {importSummary.kind === "vet" ? (
                 <>
                   Imported {importSummary.prospectCount} player{importSummary.prospectCount === 1 ? "" : "s"} to the VET board.
+                </>
+              ) : importSummary.kind === "bb" ? (
+                <>
+                  Imported {importSummary.prospectCount} prospect{importSummary.prospectCount === 1 ? "" : "s"} into the {importSummary.year} basketball class.
                 </>
               ) : (
                 <>
@@ -992,7 +1289,7 @@ export default function DraftBoard({ session }) {
         ) : (
           <div className="board-columns" style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
             {positions.map((pos) => {
-              const list = isVetView ? (groupedVets[pos.abbr] || []) : (grouped[pos.abbr] || []);
+              const list = isBasketball ? (bbGrouped[pos.abbr] || []) : isVetView ? (groupedVets[pos.abbr] || []) : (grouped[pos.abbr] || []);
               return (
                 <div
                   key={pos.abbr}
@@ -1022,11 +1319,11 @@ export default function DraftBoard({ session }) {
                   <div style={{ flex: 1 }}>
                     {list.length === 0 && addOpenFor !== pos.abbr && (
                       <div style={{ padding: "16px 14px", fontSize: "12px", color: COLORS.inkDim, lineHeight: 1.5 }}>
-                        {isVetView ? "No players logged yet." : `No prospects logged for ${year} yet.`}
+                        {isBasketball ? `No prospects logged for ${bbYear} yet.` : isVetView ? "No players logged yet." : `No prospects logged for ${year} yet.`}
                       </div>
                     )}
 
-                    {!isVetView && list.map((p, idx) => {
+                    {!isBasketball && !isVetView && list.map((p, idx) => {
                       const avg = computeAvg(p.grades);
                       const tier = gradeTier(avg);
                       const isOpen = expandedId === p.id;
@@ -1274,7 +1571,233 @@ export default function DraftBoard({ session }) {
                       );
                     })}
 
-                    {isVetView && list.map((v, idx) => {
+                    {isBasketball && list.map((p, idx) => {
+                      const avg = computeAvg(p.bb_grades);
+                      const tier = gradeTier(avg);
+                      const isOpen = expandedId === p.id;
+                      return (
+                        <div key={p.id} style={{ borderBottom: `1px solid ${COLORS.hair}` }}>
+                          <div
+                            className="db-row"
+                            onClick={() => setExpandedId(isOpen ? null : p.id)}
+                            style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", cursor: "pointer" }}
+                          >
+                            <span style={{ fontFamily: "'Anton', sans-serif", fontSize: "20px", color: COLORS.hairStrong, width: "22px" }}>
+                              {String(idx + 1).padStart(2, "0")}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: "13.5px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.3px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.name}
+                              </div>
+                              <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.school || "School unset"}
+                              </div>
+                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {p.agents ? p.agents : "No agent listed"}
+                              </div>
+                            </div>
+                            {p.is_a1 && (
+                              <span
+                                style={{
+                                  fontFamily: "'IBM Plex Mono', monospace",
+                                  fontSize: "11px",
+                                  fontWeight: 800,
+                                  color: "#E24C4C",
+                                  border: "1.5px solid #E24C4C",
+                                  borderRadius: "4px",
+                                  padding: "2px 5px",
+                                  flexShrink: 0,
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                A1
+                              </span>
+                            )}
+                            <div
+                              title={tier.label}
+                              style={{
+                                fontFamily: "'IBM Plex Mono', monospace",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                color: tier.filled ? tier.text : tier.color,
+                                background: tier.filled ? tier.color : "transparent",
+                                border: `1.5px solid ${tier.filled ? "rgba(255,255,255,0.15)" : tier.color}`,
+                                borderRadius: "50%",
+                                width: "34px",
+                                height: "34px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transform: "rotate(-4deg)",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {fmtGrade(avg)}
+                            </div>
+                          </div>
+
+                          {isOpen && (
+                            <div className="no-print" style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                                <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: tier.color, border: tier.filled ? "1px solid rgba(255,255,255,0.15)" : "none", flexShrink: 0 }} />
+                                <span style={{ fontSize: "10.5px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
+                                  {tier.label.toUpperCase()}
+                                </span>
+                              </div>
+
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "7px",
+                                  marginBottom: "10px",
+                                  cursor: "pointer",
+                                  fontSize: "12px",
+                                  color: p.is_a1 ? "#E24C4C" : COLORS.inkDim,
+                                  fontWeight: p.is_a1 ? 700 : 400,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={!!p.is_a1}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updateBBProspect(p.id, { is_a1: e.target.checked });
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ accentColor: "#E24C4C", width: "14px", height: "14px" }}
+                                />
+                                Mark as A1 client
+                              </label>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Name</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px", fontWeight: 600 }}
+                                defaultValue={p.name}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  if (v) updateBBProspect(p.id, { name: v });
+                                  else e.target.value = p.name;
+                                }}
+                              />
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={p.position}
+                                    onChange={(e) => updateBBProspect(p.id, { position: e.target.value })}
+                                  >
+                                    {BB_POSITIONS.map((bp) => (
+                                      <option key={bp.abbr} value={bp.abbr}>{bp.abbr}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Class year</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={p.class_year}
+                                    onChange={(e) => updateBBProspect(p.id, { class_year: Number(e.target.value) })}
+                                  >
+                                    {BB_YEARS.map((y) => (
+                                      <option key={y} value={y}>{y}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                defaultValue={p.school}
+                                onBlur={(e) => updateBBProspect(p.id, { school: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agents assigned</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "10px" }}
+                                placeholder="e.g. J. Rosenhaus"
+                                defaultValue={p.agents}
+                                onBlur={(e) => updateBBProspect(p.id, { agents: e.target.value })}
+                              />
+
+                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
+                                Scout grades ({(p.bb_grades || []).length})
+                              </div>
+                              {(p.bb_grades || []).map((g) => (
+                                <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", marginBottom: "4px" }}>
+                                  <span style={{ flex: 1, color: COLORS.ink }}>{g.scout}</span>
+                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkDim }}>{Number(g.grade).toFixed(1)}</span>
+                                  <button
+                                    className="db-btn"
+                                    onClick={(e) => { e.stopPropagation(); deleteBBGrade(p.id, g.id); }}
+                                    style={{ padding: "2px 5px" }}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                              <div style={{ display: "flex", gap: "6px", marginTop: "6px" }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  className="db-input"
+                                  placeholder="Scout"
+                                  style={{ flex: 1, width: 0 }}
+                                  value={bbGradeDraft.scout}
+                                  onChange={(e) => setBbGradeDraft({ ...bbGradeDraft, scout: e.target.value })}
+                                />
+                                <select
+                                  className="db-input"
+                                  style={{ width: "68px" }}
+                                  value={bbGradeDraft.grade}
+                                  onChange={(e) => setBbGradeDraft({ ...bbGradeDraft, grade: e.target.value })}
+                                >
+                                  {GRADE_SCALE.map((g) => (
+                                    <option key={g} value={g}>{g.toFixed(1)}</option>
+                                  ))}
+                                </select>
+                                <button className="db-btn" onClick={() => addBBGrade(p.id)} style={{ padding: "0 8px" }}>
+                                  +
+                                </button>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginTop: "10px", marginBottom: "3px" }}>Meetings</label>
+                              <input
+                                className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                placeholder="e.g. Home visit, 3/12"
+                                defaultValue={p.meetings}
+                                onBlur={(e) => updateBBProspect(p.id, { meetings: e.target.value })}
+                              />
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Notes</label>
+                              <textarea
+                                className="db-input"
+                                style={{ width: "100%", minHeight: "70px", resize: "vertical", fontFamily: "'Inter', sans-serif" }}
+                                defaultValue={p.notes}
+                                onBlur={(e) => updateBBProspect(p.id, { notes: e.target.value })}
+                              />
+
+                              <button
+                                className="db-btn"
+                                onClick={(e) => { e.stopPropagation(); deleteBBProspect(p.id); }}
+                                style={{ marginTop: "12px", fontSize: "11px", color: "#C97A7A", borderColor: "rgba(201,122,122,0.3)", padding: "5px 9px" }}
+                              >
+                                Remove prospect
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {!isBasketball && isVetView && list.map((v, idx) => {
                       const isOpen = expandedId === v.id;
                       const age = calcAge(v.date_of_birth);
                       return (
@@ -1428,6 +1951,20 @@ export default function DraftBoard({ session }) {
                                     ))}
                                   </select>
                                 </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft round</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={v.draft_round || ""}
+                                    onChange={(e) => updateVet(v.id, { draft_round: e.target.value || null })}
+                                  >
+                                    <option value="">—</option>
+                                    {DRAFT_ROUNDS.map((r) => (
+                                      <option key={r} value={r}>{r}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Hometown</label>
@@ -1558,7 +2095,37 @@ export default function DraftBoard({ session }) {
 
                   <div className="no-print" style={{ padding: "10px 14px 14px" }}>
                     {addOpenFor === pos.abbr ? (
-                      isVetView ? (
+                      isBasketball ? (
+                        <div>
+                          <input
+                            className="db-input"
+                            placeholder="Player name"
+                            style={{ width: "100%", marginBottom: "6px" }}
+                            value={bbAddDraft.name}
+                            onChange={(e) => setBbAddDraft({ ...bbAddDraft, name: e.target.value })}
+                            autoFocus
+                          />
+                          <input
+                            className="db-input"
+                            placeholder="School"
+                            style={{ width: "100%", marginBottom: "8px" }}
+                            value={bbAddDraft.school}
+                            onChange={(e) => setBbAddDraft({ ...bbAddDraft, school: e.target.value })}
+                          />
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              className="db-btn"
+                              onClick={() => submitAddBB(pos.abbr)}
+                              style={{ flex: 1, padding: "6px", color: accent, borderColor: accent }}
+                            >
+                              Add to board
+                            </button>
+                            <button className="db-btn" onClick={() => setAddOpenFor(null)} style={{ padding: "6px 10px" }}>
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      ) : isVetView ? (
                         <div>
                           <input
                             className="db-input"
@@ -1645,7 +2212,7 @@ export default function DraftBoard({ session }) {
                         onClick={() => openAdd(pos.abbr)}
                         style={{ width: "100%", padding: "8px", fontSize: "12px" }}
                       >
-                        {isVetView ? "+ Add player" : "+ Add prospect"}
+                        {isBasketball ? "+ Add prospect" : isVetView ? "+ Add player" : "+ Add prospect"}
                       </button>
                     )}
                   </div>
