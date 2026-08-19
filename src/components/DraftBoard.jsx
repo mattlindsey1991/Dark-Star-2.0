@@ -51,7 +51,9 @@ const BB_POSITIONS = [
   { abbr: "PF", name: "Power forward" },
   { abbr: "C", name: "Center" },
 ];
-const BB_YEARS = ["HS-2027", "HS-2028", "HS-2029", "HS-2030", "HS-2031", "College-NIL", "College-Pro", "W-NIL"];
+const BB_YEARS = ["HS-2027", "HS-2028", "HS-2029", "HS-2030", "HS-2031", "College-NIL", "College-Pro", "Pro", "W-NIL"];
+const BB_PRIORITIES = ["High", "Medium", "Low"];
+const BB_STATUSES = ["Target", "Evaluating", "Contacted", "Warm", "Signed"];
 
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
@@ -163,7 +165,7 @@ export default function DraftBoard({ session }) {
   const [expandedId, setExpandedId] = useState(null);
   const [addOpenFor, setAddOpenFor] = useState(null);
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
-  const [bbAddDraft, setBbAddDraft] = useState({ name: "", school: "" });
+  const [bbAddDraft, setBbAddDraft] = useState({ name: "", team: "" });
   const [vetDraft, setVetDraft] = useState({ name: "", hometown: "", draftYear: 2024 });
   const [gradeDraft, setGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
@@ -292,7 +294,7 @@ export default function DraftBoard({ session }) {
         (bp) =>
           !q ||
           bp.name.toLowerCase().includes(q) ||
-          (bp.school || "").toLowerCase().includes(q)
+          (bp.team || "").toLowerCase().includes(q)
       )
       .forEach((bp) => map[bp.position].push(bp));
     Object.keys(map).forEach((k) => {
@@ -317,7 +319,7 @@ export default function DraftBoard({ session }) {
     setAddOpenFor(posAbbr);
     setAddDraft({ name: "", school: "", entryYear: 2024 });
     setVetDraft({ name: "", hometown: "", draftYear: 2024 });
-    setBbAddDraft({ name: "", school: "" });
+    setBbAddDraft({ name: "", team: "" });
   }
 
   async function submitAdd(posAbbr) {
@@ -376,8 +378,7 @@ export default function DraftBoard({ session }) {
         name: bbAddDraft.name.trim(),
         position: posAbbr,
         class_year: bbYear,
-        school: bbAddDraft.school.trim(),
-        agents: "",
+        team: bbAddDraft.team.trim(),
         created_by: session.user.id,
       })
       .select()
@@ -719,10 +720,16 @@ export default function DraftBoard({ session }) {
 
         const nameKey = keyMap["name"];
         const posKey = keyMap["position"];
-        const schoolKey = keyMap["school"];
-        const classYearKey = keyMap["class year"] || keyMap["classyear"];
-        const agentsKey = keyMap["agents"];
-        const meetingsKey = keyMap["meetings"];
+        const teamKey = keyMap["team"];
+        const classYearKey = keyMap["class year"] || keyMap["classyear"] || keyMap["category"];
+        const aauKey = keyMap["aau program"] || keyMap["aauprogram"] || keyMap["aau"];
+        const yearKey = keyMap["year"];
+        const primaryRecruiterKey = keyMap["primary recruiter"] || keyMap["primaryrecruiter"];
+        const secondaryRecruiterKey = keyMap["secondary recruiter"] || keyMap["secondaryrecruiter"];
+        const contactKey = keyMap["contact"];
+        const priorityKey = keyMap["priority"];
+        const statusKey = keyMap["status"];
+        const lastContactKey = keyMap["last contact date"] || keyMap["lastcontactdate"];
         const notesKey = keyMap["notes"];
 
         const name = nameKey ? String(row[nameKey]).trim() : "";
@@ -739,14 +746,24 @@ export default function DraftBoard({ session }) {
 
         const classYearRaw = classYearKey ? String(row[classYearKey]).trim() : "";
         const classYearMatch = BB_YEARS.find((y) => y.toLowerCase() === classYearRaw.toLowerCase());
+        const priorityRaw = priorityKey ? String(row[priorityKey]).trim() : "";
+        const priorityMatch = BB_PRIORITIES.find((pr) => pr.toLowerCase() === priorityRaw.toLowerCase());
+        const statusRaw = statusKey ? String(row[statusKey]).trim() : "";
+        const statusMatch = BB_STATUSES.find((st) => st.toLowerCase() === statusRaw.toLowerCase());
 
         bbRows.push({
           name,
           position: positionRaw,
           class_year: classYearMatch || (classYearRaw ? classYearRaw : bbYear),
-          school: schoolKey ? String(row[schoolKey]).trim() : "",
-          agents: agentsKey ? String(row[agentsKey]).trim() : "",
-          meetings: meetingsKey ? String(row[meetingsKey]).trim() : "",
+          team: teamKey ? String(row[teamKey]).trim() : "",
+          aau_program: aauKey ? String(row[aauKey]).trim() : "",
+          year: yearKey ? String(row[yearKey]).trim() : "",
+          primary_recruiter: primaryRecruiterKey ? String(row[primaryRecruiterKey]).trim() : "",
+          secondary_recruiter: secondaryRecruiterKey ? String(row[secondaryRecruiterKey]).trim() : "",
+          contact: contactKey ? String(row[contactKey]).trim() : "",
+          priority: priorityMatch || null,
+          status: statusMatch || null,
+          last_contact_date: lastContactKey ? parseExcelDate(row[lastContactKey]) : null,
           notes: notesKey ? String(row[notesKey]).trim() : "",
           created_by: session.user.id,
         });
@@ -806,15 +823,21 @@ export default function DraftBoard({ session }) {
           rows.push({
             Name: p.name,
             Position: p.position,
-            School: p.school || "",
             "Class Year": p.class_year,
-            Agents: p.agents || "",
+            Team: p.team || "",
+            "AAU Program": p.aau_program || "",
+            Year: p.year || "",
+            "Primary Recruiter": p.primary_recruiter || "",
+            "Secondary Recruiter": p.secondary_recruiter || "",
+            Contact: p.contact || "",
+            Priority: p.priority || "",
+            Status: p.status || "",
+            "Last Contact Date": p.last_contact_date || "",
             "A1 Client": p.is_a1 ? "Yes" : "No",
             "Avg Grade": avg !== null ? avg.toFixed(1) : "",
             Grades: (p.bb_grades || [])
               .map((g) => `${g.scout}: ${Number(g.grade).toFixed(1)}`)
               .join("; "),
-            Meetings: p.meetings || "",
             Notes: p.notes || "",
           });
         });
@@ -1141,7 +1164,7 @@ export default function DraftBoard({ session }) {
                 className="db-btn no-print"
                 onClick={() => bbFileInputRef.current && bbFileInputRef.current.click()}
                 disabled={importing}
-                title={`Imports into the ${bbYear} class. Columns: Name, Position, School, Class Year, Agents, plus any scout columns.`}
+                title={`Imports into the ${bbYear} class. Columns: Name, Position, Team, Class Year, AAU Program, Year, Primary Recruiter, Secondary Recruiter, Contact, Priority, Status, Last Contact Date, Notes, plus any scout columns.`}
                 style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
               >
                 {importing ? "Importing…" : "Upload Excel"}
@@ -1591,10 +1614,10 @@ export default function DraftBoard({ session }) {
                                 {p.name}
                               </div>
                               <div style={{ fontSize: "11px", color: COLORS.inkDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {p.school || "School unset"}
+                                {p.team || "Team unset"}
                               </div>
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {p.agents ? p.agents : "No agent listed"}
+                                {[p.status, p.priority ? `${p.priority} priority` : null].filter(Boolean).join(" · ") || "No status set"}
                               </div>
                             </div>
                             {p.is_a1 && (
@@ -1712,21 +1735,104 @@ export default function DraftBoard({ session }) {
                                 </div>
                               </div>
 
-                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School</label>
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Team</label>
                               <input
                                 className="db-input"
                                 style={{ width: "100%", marginBottom: "8px" }}
-                                defaultValue={p.school}
-                                onBlur={(e) => updateBBProspect(p.id, { school: e.target.value })}
+                                defaultValue={p.team}
+                                onBlur={(e) => updateBBProspect(p.id, { team: e.target.value })}
                               />
 
-                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agents assigned</label>
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>AAU program</label>
+                                  <input
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    defaultValue={p.aau_program}
+                                    onBlur={(e) => updateBBProspect(p.id, { aau_program: e.target.value })}
+                                  />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Year</label>
+                                  <input
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    placeholder="e.g. Fr, Soph, Jr, Sr"
+                                    defaultValue={p.year}
+                                    onBlur={(e) => updateBBProspect(p.id, { year: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Primary recruiter</label>
+                                  <input
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    defaultValue={p.primary_recruiter}
+                                    onBlur={(e) => updateBBProspect(p.id, { primary_recruiter: e.target.value })}
+                                  />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Secondary recruiter</label>
+                                  <input
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    defaultValue={p.secondary_recruiter}
+                                    onBlur={(e) => updateBBProspect(p.id, { secondary_recruiter: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Contact</label>
                               <input
                                 className="db-input"
+                                style={{ width: "100%", marginBottom: "8px" }}
+                                placeholder="Phone, email, etc."
+                                defaultValue={p.contact}
+                                onBlur={(e) => updateBBProspect(p.id, { contact: e.target.value })}
+                              />
+
+                              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Priority</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={p.priority || ""}
+                                    onChange={(e) => updateBBProspect(p.id, { priority: e.target.value || null })}
+                                  >
+                                    <option value="">—</option>
+                                    {BB_PRIORITIES.map((pr) => (
+                                      <option key={pr} value={pr}>{pr}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Status</label>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "100%" }}
+                                    value={p.status || ""}
+                                    onChange={(e) => updateBBProspect(p.id, { status: e.target.value || null })}
+                                  >
+                                    <option value="">—</option>
+                                    {BB_STATUSES.map((st) => (
+                                      <option key={st} value={st}>{st}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Last contact date</label>
+                              <input
+                                type="date"
+                                className="db-input"
                                 style={{ width: "100%", marginBottom: "10px" }}
-                                placeholder="e.g. J. Rosenhaus"
-                                defaultValue={p.agents}
-                                onBlur={(e) => updateBBProspect(p.id, { agents: e.target.value })}
+                                defaultValue={p.last_contact_date || ""}
+                                onBlur={(e) => updateBBProspect(p.id, { last_contact_date: e.target.value || null })}
                               />
 
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
@@ -1767,15 +1873,6 @@ export default function DraftBoard({ session }) {
                                   +
                                 </button>
                               </div>
-
-                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginTop: "10px", marginBottom: "3px" }}>Meetings</label>
-                              <input
-                                className="db-input"
-                                style={{ width: "100%", marginBottom: "8px" }}
-                                placeholder="e.g. Home visit, 3/12"
-                                defaultValue={p.meetings}
-                                onBlur={(e) => updateBBProspect(p.id, { meetings: e.target.value })}
-                              />
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Notes</label>
                               <textarea
@@ -2108,10 +2205,10 @@ export default function DraftBoard({ session }) {
                           />
                           <input
                             className="db-input"
-                            placeholder="School"
+                            placeholder="Team"
                             style={{ width: "100%", marginBottom: "8px" }}
-                            value={bbAddDraft.school}
-                            onChange={(e) => setBbAddDraft({ ...bbAddDraft, school: e.target.value })}
+                            value={bbAddDraft.team}
+                            onChange={(e) => setBbAddDraft({ ...bbAddDraft, team: e.target.value })}
                           />
                           <div style={{ display: "flex", gap: "6px" }}>
                             <button
