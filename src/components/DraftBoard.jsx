@@ -51,7 +51,7 @@ const BB_POSITIONS = [
   { abbr: "PF", name: "Power forward" },
   { abbr: "C", name: "Center" },
 ];
-const BB_YEARS = [2027, 2028, 2029, 2030, 2031, 2032];
+const BB_YEARS = ["HS-2027", "HS-2028", "HS-2029", "HS-2030", "HS-2031", "College-NIL", "College-Pro", "W-NIL"];
 
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
@@ -155,7 +155,7 @@ export default function DraftBoard({ session }) {
   const [vets, setVets] = useState([]);
   const [bbProspects, setBbProspects] = useState([]);
   const [sport, setSport] = useState("FOOTBALL");
-  const [bbYear, setBbYear] = useState(2027);
+  const [bbYear, setBbYear] = useState("HS-2027");
   const [loaded, setLoaded] = useState(false);
   const [board, setBoard] = useState("OFFENSE");
   const [year, setYear] = useState(2027);
@@ -737,12 +737,13 @@ export default function DraftBoard({ session }) {
           return;
         }
 
-        const classYearNum = classYearKey ? parseInt(row[classYearKey], 10) : bbYear;
+        const classYearRaw = classYearKey ? String(row[classYearKey]).trim() : "";
+        const classYearMatch = BB_YEARS.find((y) => y.toLowerCase() === classYearRaw.toLowerCase());
 
         bbRows.push({
           name,
           position: positionRaw,
-          class_year: Number.isFinite(classYearNum) ? classYearNum : bbYear,
+          class_year: classYearMatch || (classYearRaw ? classYearRaw : bbYear),
           school: schoolKey ? String(row[schoolKey]).trim() : "",
           agents: agentsKey ? String(row[agentsKey]).trim() : "",
           meetings: meetingsKey ? String(row[meetingsKey]).trim() : "",
@@ -1697,12 +1698,12 @@ export default function DraftBoard({ session }) {
                                   </select>
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Class year</label>
+                                  <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Class / category</label>
                                   <select
                                     className="db-input"
                                     style={{ width: "100%" }}
                                     value={p.class_year}
-                                    onChange={(e) => updateBBProspect(p.id, { class_year: Number(e.target.value) })}
+                                    onChange={(e) => updateBBProspect(p.id, { class_year: e.target.value })}
                                   >
                                     {BB_YEARS.map((y) => (
                                       <option key={y} value={y}>{y}</option>
@@ -2225,3 +2226,4 @@ export default function DraftBoard({ session }) {
     </div>
   );
 }
+
