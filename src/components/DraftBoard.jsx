@@ -143,6 +143,20 @@ function projectedValueNum(v) {
   return match ? parseInt(match[0], 10) : -1;
 }
 
+function priorityRank(p) {
+  if (p === "High") return 0;
+  if (p === "Medium") return 1;
+  if (p === "Low") return 2;
+  return 3;
+}
+
+function priorityColor(p) {
+  if (p === "High") return { bg: "#4C9A5B", text: "#EAF6EC" };
+  if (p === "Medium") return { bg: "#D9B23C", text: "#2B2000" };
+  if (p === "Low") return { bg: "#C24E4E", text: "#FCEDED" };
+  return null;
+}
+
 function calcAge(dob) {
   if (!dob) return null;
   const birth = new Date(dob + "T00:00:00");
@@ -298,14 +312,7 @@ export default function DraftBoard({ session }) {
       )
       .forEach((bp) => map[bp.position].push(bp));
     Object.keys(map).forEach((k) => {
-      map[k].sort((a, b) => {
-        const av = computeAvg(a.bb_grades);
-        const bv = computeAvg(b.bb_grades);
-        if (av === null && bv === null) return 0;
-        if (av === null) return 1;
-        if (bv === null) return -1;
-        return av - bv;
-      });
+      map[k].sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority));
     });
     return map;
   }, [bbProspects, bbYear, search]);
@@ -1276,7 +1283,7 @@ export default function DraftBoard({ session }) {
           </div>
         )}
 
-        {isVetView ? (
+        {isBasketball ? null : isVetView ? (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
             <span style={{ width: "9px", height: "9px", borderRadius: "3px", background: COLORS.vetGreen, border: "1px solid rgba(255,255,255,0.15)" }} />
             <span style={{ fontSize: "11px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -1596,8 +1603,7 @@ export default function DraftBoard({ session }) {
                     })}
 
                     {isBasketball && list.map((p, idx) => {
-                      const avg = computeAvg(p.bb_grades);
-                      const tier = gradeTier(avg);
+                      const pColor = priorityColor(p.priority);
                       const isOpen = expandedId === p.id;
                       return (
                         <div key={p.id} style={{ borderBottom: `1px solid ${COLORS.hair}` }}>
@@ -1638,14 +1644,14 @@ export default function DraftBoard({ session }) {
                               </span>
                             )}
                             <div
-                              title={tier.label}
+                              title={p.priority ? `${p.priority} priority` : "No priority set"}
                               style={{
                                 fontFamily: "'IBM Plex Mono', monospace",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                                color: tier.filled ? tier.text : tier.color,
-                                background: tier.filled ? tier.color : "transparent",
-                                border: `1.5px solid ${tier.filled ? "rgba(255,255,255,0.15)" : tier.color}`,
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                color: pColor ? pColor.text : COLORS.inkDim,
+                                background: pColor ? pColor.bg : "transparent",
+                                border: `1.5px solid ${pColor ? "rgba(255,255,255,0.15)" : COLORS.ungraded}`,
                                 borderRadius: "50%",
                                 width: "34px",
                                 height: "34px",
@@ -1656,25 +1662,19 @@ export default function DraftBoard({ session }) {
                                 flexShrink: 0,
                               }}
                             >
-                              {fmtGrade(avg)}
+                              {p.priority ? p.priority[0] : "—"}
                             </div>
                           </div>
 
                           {isOpen && (
                             <div className="no-print" style={{ padding: "4px 14px 14px", background: COLORS.surfaceHi }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                                <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: tier.color, border: tier.filled ? "1px solid rgba(255,255,255,0.15)" : "none", flexShrink: 0 }} />
-                                <span style={{ fontSize: "10.5px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
-                                  {tier.label.toUpperCase()}
-                                </span>
-                              </div>
-
                               <label
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
                                   gap: "7px",
                                   marginBottom: "10px",
+                                  marginTop: "8px",
                                   cursor: "pointer",
                                   fontSize: "12px",
                                   color: p.is_a1 ? "#E24C4C" : COLORS.inkDim,
@@ -1834,45 +1834,6 @@ export default function DraftBoard({ session }) {
                                 defaultValue={p.last_contact_date || ""}
                                 onBlur={(e) => updateBBProspect(p.id, { last_contact_date: e.target.value || null })}
                               />
-
-                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
-                                Scout grades ({(p.bb_grades || []).length})
-                              </div>
-                              {(p.bb_grades || []).map((g) => (
-                                <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", marginBottom: "4px" }}>
-                                  <span style={{ flex: 1, color: COLORS.ink }}>{g.scout}</span>
-                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkDim }}>{Number(g.grade).toFixed(1)}</span>
-                                  <button
-                                    className="db-btn"
-                                    onClick={(e) => { e.stopPropagation(); deleteBBGrade(p.id, g.id); }}
-                                    style={{ padding: "2px 5px" }}
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              ))}
-                              <div style={{ display: "flex", gap: "6px", marginTop: "6px" }} onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  className="db-input"
-                                  placeholder="Scout"
-                                  style={{ flex: 1, width: 0 }}
-                                  value={bbGradeDraft.scout}
-                                  onChange={(e) => setBbGradeDraft({ ...bbGradeDraft, scout: e.target.value })}
-                                />
-                                <select
-                                  className="db-input"
-                                  style={{ width: "68px" }}
-                                  value={bbGradeDraft.grade}
-                                  onChange={(e) => setBbGradeDraft({ ...bbGradeDraft, grade: e.target.value })}
-                                >
-                                  {GRADE_SCALE.map((g) => (
-                                    <option key={g} value={g}>{g.toFixed(1)}</option>
-                                  ))}
-                                </select>
-                                <button className="db-btn" onClick={() => addBBGrade(p.id)} style={{ padding: "0 8px" }}>
-                                  +
-                                </button>
-                              </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Notes</label>
                               <textarea
