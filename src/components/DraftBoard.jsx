@@ -27,6 +27,8 @@ const YEARS = [2027, 2028, 2029, 2030, 2031];
 const ENTRY_YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
 const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8, 6.3, 6.8, 7.3, 7.8, 8.0, 8.5, 9.0];
 
+const AGENT_INITIALS = ["TA", "KA", "LA", "EB", "BB", "DD", "JF", "TF", "CH", "RH", "CHud", "AK", "SK", "JL", "AL", "KM", "JM", "DM", "BM", "JP", "TP", "BR", "CS", "TS", "AS", "CW", "RW", "TD", "MD", "JS", "DP", "DJ"];
+
 const VET_DRAFT_YEARS = [];
 for (let y = 2031; y >= 2000; y--) VET_DRAFT_YEARS.push(y);
 
@@ -524,7 +526,10 @@ export default function DraftBoard({ session }) {
         const posKey = keyMap["position"];
         const schoolKey = keyMap["school"];
         const entryYearKey = keyMap["entry year"] || keyMap["entryyear"];
-        const agentsKey = keyMap["agents"];
+        const agent1Key = keyMap["agent 1"] || keyMap["agent1"];
+        const agent2Key = keyMap["agent 2"] || keyMap["agent2"];
+        const agent3Key = keyMap["agent 3"] || keyMap["agent3"];
+        const otherAgencyKey = keyMap["other agency"] || keyMap["otheragency"];
 
         const name = nameKey ? String(row[nameKey]).trim() : "";
         const positionRaw = posKey ? String(row[posKey]).trim().toUpperCase() : "";
@@ -551,7 +556,10 @@ export default function DraftBoard({ session }) {
           school: schoolKey ? String(row[schoolKey]).trim() : "",
           draft_class_year: year,
           entry_year: Number.isFinite(entryYearNum) ? entryYearNum : null,
-          agents: agentsKey ? String(row[agentsKey]).trim() : "",
+          agent_1: agent1Key ? String(row[agent1Key]).trim() : "",
+          agent_2: agent2Key ? String(row[agent2Key]).trim() : "",
+          agent_3: agent3Key ? String(row[agent3Key]).trim() : "",
+          other_agency: otherAgencyKey ? String(row[otherAgencyKey]).trim() : "",
           created_by: session.user.id,
         });
 
@@ -883,7 +891,10 @@ export default function DraftBoard({ session }) {
             School: p.school || "",
             "Draft Class": p.draft_class_year,
             "Entry Year": p.entry_year || "",
-            Agents: p.agents || "",
+            "Agent 1": p.agent_1 || "",
+            "Agent 2": p.agent_2 || "",
+            "Agent 3": p.agent_3 || "",
+            "Other Agency": p.other_agency || "",
             "A1 Client": p.is_a1 ? "Yes" : "No",
             "Avg Grade": avg !== null ? avg.toFixed(1) : "",
             Grades: (p.grades || [])
@@ -1376,7 +1387,20 @@ export default function DraftBoard({ session }) {
                                 {p.school || "School unset"}
                               </div>
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, opacity: 0.75, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {p.agents ? p.agents : "No agent listed"}
+                                {(() => {
+                                  const initials = [p.agent_1, p.agent_2, p.agent_3].filter(Boolean).join(", ");
+                                  if (!initials && !p.other_agency) return "No agent listed";
+                                  return (
+                                    <>
+                                      {initials}
+                                      {p.other_agency && (
+                                        <span style={{ color: "#D98A3E" }}>
+                                          {initials ? " · " : ""}{p.other_agency}
+                                        </span>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </div>
                             </div>
                             {p.is_a1 && (
@@ -1524,13 +1548,50 @@ export default function DraftBoard({ session }) {
                                 ))}
                               </select>
 
-                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agents assigned</label>
+                              <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "3px" }}>A1 Agents</div>
+                              <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                                <select
+                                  className="db-input"
+                                  style={{ flex: 1 }}
+                                  value={p.agent_1 || ""}
+                                  onChange={(e) => updateProspect(p.id, { agent_1: e.target.value || null })}
+                                >
+                                  <option value="">Agent 1</option>
+                                  {AGENT_INITIALS.map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  className="db-input"
+                                  style={{ flex: 1 }}
+                                  value={p.agent_2 || ""}
+                                  onChange={(e) => updateProspect(p.id, { agent_2: e.target.value || null })}
+                                >
+                                  <option value="">Agent 2</option>
+                                  {AGENT_INITIALS.map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                                <select
+                                  className="db-input"
+                                  style={{ flex: 1 }}
+                                  value={p.agent_3 || ""}
+                                  onChange={(e) => updateProspect(p.id, { agent_3: e.target.value || null })}
+                                >
+                                  <option value="">Agent 3</option>
+                                  {AGENT_INITIALS.map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Other agency</label>
                               <input
                                 className="db-input"
                                 style={{ width: "100%", marginBottom: "10px" }}
-                                placeholder="e.g. J. Rosenhaus"
-                                defaultValue={p.agents}
-                                onBlur={(e) => updateProspect(p.id, { agents: e.target.value })}
+                                placeholder="e.g. Rosenhaus, CAA, Excel"
+                                defaultValue={p.other_agency}
+                                onBlur={(e) => updateProspect(p.id, { other_agency: e.target.value || null })}
                               />
 
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
