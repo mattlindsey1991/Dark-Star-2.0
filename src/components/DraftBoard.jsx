@@ -947,6 +947,7 @@ export default function DraftBoard({ session }) {
         }
         .db-input:focus { border-color: ${COLORS.hairStrong}; }
         .db-input::placeholder { color: ${COLORS.inkDim}; }
+        .db-input option { color: #15171A; background: #ECE7DC; }
         .db-btn {
           background: transparent;
           border: 1px solid ${COLORS.hair};
@@ -1549,36 +1550,36 @@ export default function DraftBoard({ session }) {
                               </select>
 
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "3px" }}>A1 Agents</div>
-                              <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                              <div style={{ display: "flex", gap: "4px", marginBottom: "8px" }}>
                                 <select
                                   className="db-input"
-                                  style={{ flex: 1 }}
+                                  style={{ flex: 1, width: 0, minWidth: 0, fontSize: "11px", padding: "5px 3px" }}
                                   value={p.agent_1 || ""}
                                   onChange={(e) => updateProspect(p.id, { agent_1: e.target.value || null })}
                                 >
-                                  <option value="">Agent 1</option>
+                                  <option value="">—</option>
                                   {AGENT_INITIALS.map((a) => (
                                     <option key={a} value={a}>{a}</option>
                                   ))}
                                 </select>
                                 <select
                                   className="db-input"
-                                  style={{ flex: 1 }}
+                                  style={{ flex: 1, width: 0, minWidth: 0, fontSize: "11px", padding: "5px 3px" }}
                                   value={p.agent_2 || ""}
                                   onChange={(e) => updateProspect(p.id, { agent_2: e.target.value || null })}
                                 >
-                                  <option value="">Agent 2</option>
+                                  <option value="">—</option>
                                   {AGENT_INITIALS.map((a) => (
                                     <option key={a} value={a}>{a}</option>
                                   ))}
                                 </select>
                                 <select
                                   className="db-input"
-                                  style={{ flex: 1 }}
+                                  style={{ flex: 1, width: 0, minWidth: 0, fontSize: "11px", padding: "5px 3px" }}
                                   value={p.agent_3 || ""}
                                   onChange={(e) => updateProspect(p.id, { agent_3: e.target.value || null })}
                                 >
-                                  <option value="">Agent 3</option>
+                                  <option value="">—</option>
                                   {AGENT_INITIALS.map((a) => (
                                     <option key={a} value={a}>{a}</option>
                                   ))}
@@ -2345,4 +2346,5 @@ export default function DraftBoard({ session }) {
     </div>
   );
 }
+
 
