@@ -23,7 +23,7 @@ const DEFENSE_POSITIONS = [
   { abbr: "LS", name: "Long snapper" },
 ];
 
-const YEARS = [2027, 2028, 2029, 2030, 2031];
+const YEARS = [2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035, 2036, 2037];
 const ENTRY_YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
 const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8, 5.3, 5.8, 6.3, 6.8, 7.3, 7.8, 8.0, 8.5, 9.0];
 
@@ -1128,22 +1128,25 @@ export default function DraftBoard({ session }) {
                     {y}
                   </button>
                 ))
-              : YEARS.map((y) => (
-                  <button
-                    key={y}
-                    onClick={() => setYear(y)}
-                    className="db-btn"
+              : (
+                  <select
+                    className="db-input"
+                    value={typeof year === "number" ? year : ""}
+                    onChange={(e) => setYear(Number(e.target.value))}
                     style={{
                       fontFamily: "'IBM Plex Mono', monospace",
                       fontSize: "12.5px",
                       padding: "7px 10px",
-                      borderColor: year === y ? accent : COLORS.hair,
-                      color: year === y ? accent : COLORS.inkDim,
+                      borderColor: !isVetView ? accent : COLORS.hair,
+                      color: !isVetView ? accent : COLORS.inkDim,
+                      fontWeight: 700,
                     }}
                   >
-                    {y}
-                  </button>
-                ))}
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                )}
             {!isBasketball && (
               <button
                 onClick={() => setYear("VET")}
@@ -2346,5 +2349,6 @@ export default function DraftBoard({ session }) {
     </div>
   );
 }
+
 
 
