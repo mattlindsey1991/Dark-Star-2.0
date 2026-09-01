@@ -29,6 +29,10 @@ const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8,
 
 const AGENT_INITIALS = ["TA", "KA", "LA", "EB", "BB", "DD", "JF", "TF", "CH", "RH", "CHud", "AK", "SK", "JL", "AL", "KM", "JM", "DM", "BM", "JP", "TP", "BR", "CS", "TS", "AS", "CW", "RW", "TD", "MD", "JS", "DP", "DJ"];
 
+const SCOUT_TEAMS = ["A1", "ARZ", "ATL", "BAL", "BLESTO", "BUF", "CAR", "CHI", "CIN", "CLV", "DAL", "DEN", "DET", "GB", "HOU", "IND", "JAX", "KC", "LAC", "LAR", "LVR", "MIA", "MIN", "NE", "NFS", "NO", "NYG", "NYJ", "PHI", "PIT", "SEA", "SF", "TB", "TEN", "WAS"];
+const SCOUT_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const SCOUT_YEARS = [2024, 2025, 2026, 2027, 2028, 2029, 2030];
+
 const VET_DRAFT_YEARS = [];
 for (let y = 2031; y >= 2000; y--) VET_DRAFT_YEARS.push(y);
 
@@ -183,7 +187,7 @@ export default function DraftBoard({ session }) {
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
   const [bbAddDraft, setBbAddDraft] = useState({ name: "", team: "" });
   const [vetDraft, setVetDraft] = useState({ name: "", hometown: "", draftYear: 2024 });
-  const [gradeDraft, setGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
+  const [gradeDraft, setGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
@@ -473,7 +477,16 @@ export default function DraftBoard({ session }) {
     if (!gradeDraft.scout.trim() || isNaN(g) || !GRADE_SCALE.includes(g)) return;
     const { data, error } = await supabase
       .from("grades")
-      .insert({ prospect_id: id, scout: gradeDraft.scout.trim(), grade: g, created_by: session.user.id })
+      .insert({
+        prospect_id: id,
+        scout: gradeDraft.scout.trim(),
+        team: gradeDraft.team || null,
+        scout_name: gradeDraft.scout.trim(),
+        month: gradeDraft.month ? Number(gradeDraft.month) : null,
+        year: gradeDraft.year ? Number(gradeDraft.year) : null,
+        grade: g,
+        created_by: session.user.id,
+      })
       .select()
       .single();
     if (error) {
@@ -483,7 +496,7 @@ export default function DraftBoard({ session }) {
     setProspects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, grades: [...p.grades, data] } : p))
     );
-    setGradeDraft({ scout: "", grade: GRADE_SCALE[0] });
+    setGradeDraft({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
   }
 
   async function deleteGrade(prospectId, gradeId) {
@@ -1603,7 +1616,12 @@ export default function DraftBoard({ session }) {
                               </div>
                               {p.grades.map((g) => (
                                 <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", marginBottom: "4px" }}>
-                                  <span style={{ flex: 1, color: COLORS.ink }}>{g.scout}</span>
+                                  <span style={{ flex: 1, color: COLORS.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {[g.team, g.scout_name || g.scout].filter(Boolean).join(" · ")}
+                                    {g.month && g.year && (
+                                      <span style={{ color: COLORS.inkDim }}> ({g.month}/{g.year})</span>
+                                    )}
+                                  </span>
                                   <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkDim }}>{Number(g.grade).toFixed(1)}</span>
                                   <button
                                     className="db-btn"
@@ -1614,27 +1632,64 @@ export default function DraftBoard({ session }) {
                                   </button>
                                 </div>
                               ))}
-                              <div style={{ display: "flex", gap: "6px", marginTop: "6px" }} onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  className="db-input"
-                                  placeholder="Scout"
-                                  style={{ flex: 1, width: 0 }}
-                                  value={gradeDraft.scout}
-                                  onChange={(e) => setGradeDraft({ ...gradeDraft, scout: e.target.value })}
-                                />
-                                <select
-                                  className="db-input"
-                                  style={{ width: "68px" }}
-                                  value={gradeDraft.grade}
-                                  onChange={(e) => setGradeDraft({ ...gradeDraft, grade: e.target.value })}
-                                >
-                                  {GRADE_SCALE.map((g) => (
-                                    <option key={g} value={g}>{g.toFixed(1)}</option>
-                                  ))}
-                                </select>
-                                <button className="db-btn" onClick={() => addGrade(p.id)} style={{ padding: "0 8px" }}>
-                                  +
-                                </button>
+                              <div style={{ marginTop: "6px" }} onClick={(e) => e.stopPropagation()}>
+                                <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "62px", fontSize: "11px", padding: "5px 3px" }}
+                                    value={gradeDraft.team}
+                                    onChange={(e) => setGradeDraft({ ...gradeDraft, team: e.target.value })}
+                                  >
+                                    <option value="">Team</option>
+                                    {SCOUT_TEAMS.map((t) => (
+                                      <option key={t} value={t}>{t}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    className="db-input"
+                                    placeholder="Scout name"
+                                    style={{ flex: 1, width: 0 }}
+                                    value={gradeDraft.scout}
+                                    onChange={(e) => setGradeDraft({ ...gradeDraft, scout: e.target.value })}
+                                  />
+                                </div>
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "50px", fontSize: "11px", padding: "5px 3px" }}
+                                    value={gradeDraft.month}
+                                    onChange={(e) => setGradeDraft({ ...gradeDraft, month: e.target.value })}
+                                  >
+                                    <option value="">Mo</option>
+                                    {SCOUT_MONTHS.map((m) => (
+                                      <option key={m} value={m}>{m}</option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "62px", fontSize: "11px", padding: "5px 3px" }}
+                                    value={gradeDraft.year}
+                                    onChange={(e) => setGradeDraft({ ...gradeDraft, year: e.target.value })}
+                                  >
+                                    <option value="">Yr</option>
+                                    {SCOUT_YEARS.map((y) => (
+                                      <option key={y} value={y}>{y}</option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    className="db-input"
+                                    style={{ width: "58px", fontSize: "11px", padding: "5px 3px" }}
+                                    value={gradeDraft.grade}
+                                    onChange={(e) => setGradeDraft({ ...gradeDraft, grade: e.target.value })}
+                                  >
+                                    {GRADE_SCALE.map((g) => (
+                                      <option key={g} value={g}>{g.toFixed(1)}</option>
+                                    ))}
+                                  </select>
+                                  <button className="db-btn" onClick={() => addGrade(p.id)} style={{ padding: "0 8px", flex: 1 }}>
+                                    +
+                                  </button>
+                                </div>
                               </div>
 
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginTop: "10px", marginBottom: "3px" }}>Meetings</label>
@@ -2349,6 +2404,7 @@ export default function DraftBoard({ session }) {
     </div>
   );
 }
+
 
 
 
