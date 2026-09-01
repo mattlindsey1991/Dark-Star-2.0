@@ -188,6 +188,8 @@ export default function DraftBoard({ session }) {
   const [bbAddDraft, setBbAddDraft] = useState({ name: "", team: "" });
   const [vetDraft, setVetDraft] = useState({ name: "", hometown: "", draftYear: 2024 });
   const [gradeDraft, setGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
+  const [editingGradeId, setEditingGradeId] = useState(null);
+  const [editGradeDraft, setEditGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
@@ -507,6 +509,44 @@ export default function DraftBoard({ session }) {
     );
     const { error } = await supabase.from("grades").delete().eq("id", gradeId);
     if (error) setErrorMsg("Couldn't remove that grade. Try again.");
+  }
+
+  function startEditGrade(g) {
+    setEditingGradeId(g.id);
+    setEditGradeDraft({
+      team: g.team || "",
+      scout: g.scout_name || g.scout || "",
+      month: g.month || "",
+      year: g.year || "",
+      grade: g.grade,
+    });
+  }
+
+  function cancelEditGrade() {
+    setEditingGradeId(null);
+  }
+
+  async function saveEditGrade(prospectId, gradeId) {
+    const g = parseFloat(editGradeDraft.grade);
+    if (!editGradeDraft.scout.trim() || isNaN(g) || !GRADE_SCALE.includes(g)) return;
+    const patch = {
+      team: editGradeDraft.team || null,
+      scout_name: editGradeDraft.scout.trim(),
+      scout: editGradeDraft.scout.trim(),
+      month: editGradeDraft.month ? Number(editGradeDraft.month) : null,
+      year: editGradeDraft.year ? Number(editGradeDraft.year) : null,
+      grade: g,
+    };
+    setProspects((prev) =>
+      prev.map((p) =>
+        p.id === prospectId
+          ? { ...p, grades: p.grades.map((gr) => (gr.id === gradeId ? { ...gr, ...patch } : gr)) }
+          : p
+      )
+    );
+    setEditingGradeId(null);
+    const { error } = await supabase.from("grades").update(patch).eq("id", gradeId);
+    if (error) setErrorMsg("Couldn't save that grade. Try again.");
   }
 
   function normalizeHeader(h) {
@@ -1614,24 +1654,106 @@ export default function DraftBoard({ session }) {
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
                                 Scout grades ({p.grades.length})
                               </div>
-                              {p.grades.map((g) => (
-                                <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", marginBottom: "4px" }}>
-                                  <span style={{ flex: 1, color: COLORS.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {[g.team, g.scout_name || g.scout].filter(Boolean).join(" · ")}
-                                    {g.month && g.year && (
-                                      <span style={{ color: COLORS.inkDim }}> ({g.month}/{g.year})</span>
-                                    )}
-                                  </span>
-                                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkDim }}>{Number(g.grade).toFixed(1)}</span>
-                                  <button
-                                    className="db-btn"
-                                    onClick={(e) => { e.stopPropagation(); deleteGrade(p.id, g.id); }}
-                                    style={{ padding: "2px 5px" }}
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              ))}
+                              {p.grades.map((g) =>
+                                editingGradeId === g.id ? (
+                                  <div key={g.id} style={{ marginBottom: "6px", padding: "6px", background: "rgba(236,231,220,0.05)", borderRadius: "4px" }} onClick={(e) => e.stopPropagation()}>
+                                    <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
+                                      <select
+                                        className="db-input"
+                                        style={{ width: "62px", fontSize: "11px", padding: "5px 3px" }}
+                                        value={editGradeDraft.team}
+                                        onChange={(e) => setEditGradeDraft({ ...editGradeDraft, team: e.target.value })}
+                                      >
+                                        <option value="">Team</option>
+                                        {SCOUT_TEAMS.map((t) => (
+                                          <option key={t} value={t}>{t}</option>
+                                        ))}
+                                      </select>
+                                      <input
+                                        className="db-input"
+                                        placeholder="Scout name"
+                                        style={{ flex: 1, width: 0 }}
+                                        value={editGradeDraft.scout}
+                                        onChange={(e) => setEditGradeDraft({ ...editGradeDraft, scout: e.target.value })}
+                                      />
+                                    </div>
+                                    <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
+                                      <select
+                                        className="db-input"
+                                        style={{ width: "50px", fontSize: "11px", padding: "5px 3px" }}
+                                        value={editGradeDraft.month}
+                                        onChange={(e) => setEditGradeDraft({ ...editGradeDraft, month: e.target.value })}
+                                      >
+                                        <option value="">Mo</option>
+                                        {SCOUT_MONTHS.map((m) => (
+                                          <option key={m} value={m}>{m}</option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        className="db-input"
+                                        style={{ width: "62px", fontSize: "11px", padding: "5px 3px" }}
+                                        value={editGradeDraft.year}
+                                        onChange={(e) => setEditGradeDraft({ ...editGradeDraft, year: e.target.value })}
+                                      >
+                                        <option value="">Yr</option>
+                                        {SCOUT_YEARS.map((y) => (
+                                          <option key={y} value={y}>{y}</option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        className="db-input"
+                                        style={{ width: "58px", fontSize: "11px", padding: "5px 3px" }}
+                                        value={editGradeDraft.grade}
+                                        onChange={(e) => setEditGradeDraft({ ...editGradeDraft, grade: e.target.value })}
+                                      >
+                                        {GRADE_SCALE.map((gr) => (
+                                          <option key={gr} value={gr}>{gr.toFixed(1)}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "4px" }}>
+                                      <button
+                                        className="db-btn"
+                                        onClick={() => saveEditGrade(p.id, g.id)}
+                                        style={{ flex: 1, padding: "4px", color: accent, borderColor: accent, fontSize: "11px" }}
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        className="db-btn"
+                                        onClick={cancelEditGrade}
+                                        style={{ flex: 1, padding: "4px", fontSize: "11px" }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", marginBottom: "4px" }}>
+                                    <span style={{ flex: 1, color: COLORS.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                      {[g.team, g.scout_name || g.scout].filter(Boolean).join(" · ")}
+                                      {g.month && g.year && (
+                                        <span style={{ color: COLORS.inkDim }}> ({g.month}/{g.year})</span>
+                                      )}
+                                    </span>
+                                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.inkDim }}>{Number(g.grade).toFixed(1)}</span>
+                                    <button
+                                      className="db-btn"
+                                      onClick={(e) => { e.stopPropagation(); startEditGrade(g); }}
+                                      style={{ padding: "2px 5px", fontSize: "11px" }}
+                                    >
+                                      ✎
+                                    </button>
+                                    <button
+                                      className="db-btn"
+                                      onClick={(e) => { e.stopPropagation(); deleteGrade(p.id, g.id); }}
+                                      style={{ padding: "2px 5px" }}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                )
+                              )}
                               <div style={{ marginTop: "6px" }} onClick={(e) => e.stopPropagation()}>
                                 <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
                                   <select
