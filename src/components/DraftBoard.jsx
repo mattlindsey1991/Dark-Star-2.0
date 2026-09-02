@@ -190,6 +190,8 @@ export default function DraftBoard({ session }) {
   const [gradeDraft, setGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
   const [editingGradeId, setEditingGradeId] = useState(null);
   const [editGradeDraft, setEditGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportFilters, setReportFilters] = useState({ agent: "", position: "", school: "", year: "" });
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
@@ -329,6 +331,113 @@ export default function DraftBoard({ session }) {
     const src = isBasketball ? bbGrouped : (isVetView ? groupedVets : grouped);
     return Object.values(src).reduce((a, list) => a + list.length, 0);
   }, [grouped, groupedVets, bbGrouped, isVetView, isBasketball]);
+
+  const reportSchools = useMemo(() => {
+    return [...new Set(prospects.map((p) => p.school).filter(Boolean))].sort();
+  }, [prospects]);
+
+  const reportRows = useMemo(() => {
+    return prospects
+      .filter((p) => {
+        if (reportFilters.position && p.position !== reportFilters.position) return false;
+        if (reportFilters.school && p.school !== reportFilters.school) return false;
+        if (reportFilters.year && p.draft_class_year !== Number(reportFilters.year)) return false;
+        if (reportFilters.agent) {
+          const agents = [p.agent_1, p.agent_2, p.agent_3].filter(Boolean);
+          if (!agents.includes(reportFilters.agent)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [prospects, reportFilters]);
+
+  function handleExportReportExcel() {
+    const rows = reportRows.map((p) => ({
+      Name: p.name,
+      Position: p.position,
+      School: p.school || "",
+      "Entry Year": p.entry_year || "",
+      "Class Year": p.draft_class_year,
+      "Agent 1": p.agent_1 || "",
+      "Agent 2": p.agent_2 || "",
+      "Agent 3": p.agent_3 || "",
+      "Other Agency": p.other_agency || "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    const filterBits = [
+      reportFilters.agent && `Agent-${reportFilters.agent}`,
+      reportFilters.position && `Pos-${reportFilters.position}`,
+      reportFilters.school && `School-${reportFilters.school}`,
+      reportFilters.year && `Year-${reportFilters.year}`,
+    ].filter(Boolean);
+    const filename = `BigBoard_Report${filterBits.length ? "_" + filterBits.join("_") : ""}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  }
+
+  function handlePrintReport() {
+    const filterLabelParts = [
+      reportFilters.agent && `Agent: ${reportFilters.agent}`,
+      reportFilters.position && `Position: ${reportFilters.position}`,
+      reportFilters.school && `School: ${reportFilters.school}`,
+      reportFilters.year && `Class Year: ${reportFilters.year}`,
+    ].filter(Boolean);
+    const filterLabel = filterLabelParts.length ? filterLabelParts.join(" · ") : "All Prospects";
+    const rowsHtml = reportRows
+      .map(
+        (p) => `<tr>
+          <td>${p.name}</td>
+          <td>${p.position}</td>
+          <td>${p.school || ""}</td>
+          <td>${p.entry_year || ""}</td>
+          <td>${p.draft_class_year}</td>
+          <td>${p.agent_1 || ""}</td>
+          <td>${p.agent_2 || ""}</td>
+          <td>${p.agent_3 || ""}</td>
+          <td>${p.other_agency || ""}</td>
+        </tr>`
+      )
+      .join("");
+    const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>THE BIG BOARD — Report</title>
+<style>
+  @page { size: landscape; margin: 12mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 24px; }
+  h1 { font-size: 20px; letter-spacing: 1px; margin: 0 0 2px; }
+  .subtitle { font-size: 12px; color: #555; margin-bottom: 4px; }
+  .filters { font-size: 12px; color: #333; margin-bottom: 16px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: left; }
+  th { background: #eee; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 10px; }
+  tr:nth-child(even) { background: #fafafa; }
+</style>
+</head>
+<body>
+  <h1>THE BIG BOARD — Prospect Report</h1>
+  <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"}</div>
+  <div class="filters">Filters: ${filterLabel}</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th>
+        <th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <script>window.onload = () => { window.print(); };</script>
+</body>
+</html>`;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
 
   function openAdd(posAbbr) {
     setAddOpenFor(posAbbr);
@@ -1303,10 +1412,143 @@ export default function DraftBoard({ session }) {
             Print / PDF
           </button>
 
+          {!isBasketball && !isVetView && (
+            <button
+              className="db-btn no-print"
+              onClick={() => setReportOpen(true)}
+              title="Build a filtered report (by agent, position, school, or class year) to print or export."
+              style={{ padding: "7px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+            >
+              Report
+            </button>
+          )}
+
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
             {totalCount} {isVetView ? "players" : "prospects"} · {isBasketball ? bbYear : year}
           </div>
         </div>
+
+        {reportOpen && (
+          <div
+            className="no-print"
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.6)",
+              zIndex: 1000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+            }}
+            onClick={() => setReportOpen(false)}
+          >
+            <div
+              style={{
+                background: COLORS.surface,
+                border: `1px solid ${COLORS.hairStrong}`,
+                borderRadius: "10px",
+                padding: "24px",
+                width: "420px",
+                maxWidth: "100%",
+                maxHeight: "90vh",
+                overflowY: "auto",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "16px" }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "22px", letterSpacing: "1px", margin: 0 }}>
+                  BUILD REPORT
+                </h2>
+                <button className="db-btn" onClick={() => setReportOpen(false)} style={{ padding: "4px 9px" }}>
+                  ×
+                </button>
+              </div>
+
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agent</label>
+              <select
+                className="db-input"
+                style={{ width: "100%", marginBottom: "10px" }}
+                value={reportFilters.agent}
+                onChange={(e) => setReportFilters({ ...reportFilters, agent: e.target.value })}
+              >
+                <option value="">All agents</option>
+                {AGENT_INITIALS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
+              <select
+                className="db-input"
+                style={{ width: "100%", marginBottom: "10px" }}
+                value={reportFilters.position}
+                onChange={(e) => setReportFilters({ ...reportFilters, position: e.target.value })}
+              >
+                <option value="">All positions</option>
+                {ALL_POSITIONS.map((pos) => (
+                  <option key={pos.abbr} value={pos.abbr}>{pos.abbr} — {pos.name}</option>
+                ))}
+              </select>
+
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School</label>
+              <select
+                className="db-input"
+                style={{ width: "100%", marginBottom: "10px" }}
+                value={reportFilters.school}
+                onChange={(e) => setReportFilters({ ...reportFilters, school: e.target.value })}
+              >
+                <option value="">All schools</option>
+                {reportSchools.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Class year</label>
+              <select
+                className="db-input"
+                style={{ width: "100%", marginBottom: "16px" }}
+                value={reportFilters.year}
+                onChange={(e) => setReportFilters({ ...reportFilters, year: e.target.value })}
+              >
+                <option value="">All years</option>
+                {YEARS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+
+              <div style={{ fontSize: "12px", color: COLORS.inkDim, marginBottom: "16px" }}>
+                {reportRows.length} prospect{reportRows.length === 1 ? "" : "s"} match{reportRows.length === 1 ? "es" : ""} these filters.
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <button
+                  className="db-btn"
+                  onClick={handlePrintReport}
+                  disabled={reportRows.length === 0}
+                  style={{ flex: 1, padding: "9px", color: accent, borderColor: accent, fontSize: "12.5px" }}
+                >
+                  Print Report
+                </button>
+                <button
+                  className="db-btn"
+                  onClick={handleExportReportExcel}
+                  disabled={reportRows.length === 0}
+                  style={{ flex: 1, padding: "9px", fontSize: "12.5px" }}
+                >
+                  Export Excel
+                </button>
+              </div>
+              <button
+                className="db-btn"
+                onClick={() => setReportFilters({ agent: "", position: "", school: "", year: "" })}
+                style={{ width: "100%", padding: "7px", fontSize: "11.5px" }}
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        )}
 
         {importSummary && (
           <div
