@@ -405,7 +405,7 @@ export default function DraftBoard({ session }) {
 <meta charset="utf-8" />
 <title>THE BIG BOARD — Report</title>
 <style>
-  @page { size: landscape; margin: 14mm; }
+  @page { size: portrait; margin: 14mm; }
   * { box-sizing: border-box; }
   body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 0; }
   .header-bar {
@@ -422,14 +422,21 @@ export default function DraftBoard({ session }) {
   .header-bar .doctype .line1 { font-size: 13px; font-weight: 800; letter-spacing: 1.2px; }
   .header-bar .doctype .line2 { font-size: 9.5px; letter-spacing: 1.5px; color: #ccc; }
   .accent-line { height: 4px; background: #A6192E; }
-  .content { padding: 20px 24px; }
+  .content { padding: 16px 18px; }
   h1 { font-size: 22px; letter-spacing: 0.5px; margin: 4px 0 2px; text-transform: uppercase; }
   .subtitle { font-size: 11.5px; color: #555; margin-bottom: 2px; }
   .filters { font-size: 11.5px; color: #333; margin-bottom: 18px; font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-  th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; font-size: 9.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; }
+  th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: left; overflow-wrap: break-word; }
+  th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 8px; }
   tr:nth-child(even) td { background: #f4f4f4; }
+  colgroup col.col-name { width: 20%; }
+  colgroup col.col-pos { width: 8%; }
+  colgroup col.col-school { width: 10%; }
+  colgroup col.col-entry { width: 10%; }
+  colgroup col.col-class { width: 10%; }
+  colgroup col.col-agent { width: 8%; }
+  colgroup col.col-other { width: 18%; }
   .footer {
     display: flex;
     justify-content: space-between;
@@ -456,6 +463,10 @@ export default function DraftBoard({ session }) {
     <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"}</div>
     <div class="filters">FILTERS: ${filterLabel.toUpperCase()}</div>
     <table>
+      <colgroup>
+        <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
+        <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
+      </colgroup>
       <thead>
         <tr>
           <th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th>
