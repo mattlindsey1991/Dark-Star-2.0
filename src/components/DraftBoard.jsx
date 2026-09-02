@@ -405,30 +405,70 @@ export default function DraftBoard({ session }) {
 <meta charset="utf-8" />
 <title>THE BIG BOARD — Report</title>
 <style>
-  @page { size: landscape; margin: 12mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 24px; }
-  h1 { font-size: 20px; letter-spacing: 1px; margin: 0 0 2px; }
-  .subtitle { font-size: 12px; color: #555; margin-bottom: 4px; }
-  .filters { font-size: 12px; color: #333; margin-bottom: 16px; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th, td { border: 1px solid #ccc; padding: 5px 7px; text-align: left; }
-  th { background: #eee; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 10px; }
-  tr:nth-child(even) { background: #fafafa; }
+  @page { size: landscape; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; padding: 0; }
+  .header-bar {
+    background: #111;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    letter-spacing: 1.5px;
+  }
+  .header-bar .brand { font-size: 18px; font-weight: 800; }
+  .header-bar .doctype { text-align: right; }
+  .header-bar .doctype .line1 { font-size: 13px; font-weight: 800; letter-spacing: 1.2px; }
+  .header-bar .doctype .line2 { font-size: 9.5px; letter-spacing: 1.5px; color: #ccc; }
+  .accent-line { height: 4px; background: #A6192E; }
+  .content { padding: 20px 24px; }
+  h1 { font-size: 22px; letter-spacing: 0.5px; margin: 4px 0 2px; text-transform: uppercase; }
+  .subtitle { font-size: 11.5px; color: #555; margin-bottom: 2px; }
+  .filters { font-size: 11.5px; color: #333; margin-bottom: 18px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+  th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; font-size: 9.5px; }
+  tr:nth-child(even) td { background: #f4f4f4; }
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9.5px;
+    color: #777;
+    letter-spacing: 0.3px;
+    border-top: 1px solid #ddd;
+    padding: 10px 24px 0;
+    margin-top: 24px;
+  }
 </style>
 </head>
 <body>
-  <h1>THE BIG BOARD — Prospect Report</h1>
-  <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"}</div>
-  <div class="filters">Filters: ${filterLabel}</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th>
-        <th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th>
-      </tr>
-    </thead>
-    <tbody>${rowsHtml}</tbody>
-  </table>
+  <div class="header-bar">
+    <div class="brand">ATHLETES &middot; FIRST</div>
+    <div class="doctype">
+      <div class="line1">THE BIG BOARD</div>
+      <div class="line2">PROSPECT REPORT</div>
+    </div>
+  </div>
+  <div class="accent-line"></div>
+  <div class="content">
+    <h1>Prospect Report</h1>
+    <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"}</div>
+    <div class="filters">FILTERS: ${filterLabel.toUpperCase()}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th>
+          <th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </div>
+  <div class="footer">
+    <span>ATHLETES FIRST&nbsp;&nbsp;|&nbsp;&nbsp;CONFIDENTIAL</span>
+    <span>Prepared ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}</span>
+  </div>
   <script>window.onload = () => { window.print(); };</script>
 </body>
 </html>`;
