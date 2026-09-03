@@ -376,10 +376,15 @@ export default function DraftBoard({ session }) {
   const reportGradeRows = useMemo(() => {
     return reportRows
       .filter((p) => p.grades && p.grades.length > 0)
-      .map((p) => ({
-        ...p,
-        sortedGrades: [...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)),
-      }));
+      .map((p) => {
+        const avgGrade = computeAvg(p.grades);
+        return {
+          ...p,
+          sortedGrades: [...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)),
+          avgGrade,
+          avgTier: gradeTier(avgGrade),
+        };
+      });
   }, [reportRows]);
 
   const SORT_LABELS = { name: "Name", lastName: "Last Name", school: "School", position: "Position", classYear: "Class Year" };
@@ -396,6 +401,7 @@ export default function DraftBoard({ session }) {
             Position: p.position,
             School: p.school || "",
             "Class Year": p.draft_class_year,
+            "Average Grade": fmtGrade(p.avgGrade),
             Team: g.team || "",
             Scout: g.scout_name || g.scout || "",
             Month: g.month || "",
@@ -444,50 +450,92 @@ export default function DraftBoard({ session }) {
     const sortLabel = SORT_LABELS[reportSortBy] || "Name";
 
     const isGrades = reportType === "grades";
-    const rowsHtml = isGrades
-      ? reportGradeRows
-          .map((p) =>
-            p.sortedGrades
-              .map(
-                (g, idx) => `<tr>
-                  ${idx === 0 ? `<td rowspan="${p.sortedGrades.length}">${p.name}</td><td rowspan="${p.sortedGrades.length}">${p.position}</td><td rowspan="${p.sortedGrades.length}">${p.school || ""}</td><td rowspan="${p.sortedGrades.length}">${p.draft_class_year}</td>` : ""}
-                  <td>${g.team || ""}</td>
-                  <td>${g.scout_name || g.scout || ""}</td>
-                  <td>${g.month && g.year ? `${g.month}/${g.year}` : ""}</td>
-                  <td>${Number(g.grade).toFixed(1)}</td>
-                </tr>`
-              )
-              .join("")
-          )
-          .join("")
-      : reportRows
-          .map(
-            (p) => `<tr>
-              <td>${p.name}</td>
-              <td>${p.position}</td>
-              <td>${p.school || ""}</td>
-              <td>${p.entry_year || ""}</td>
-              <td>${p.draft_class_year}</td>
-              <td>${p.agent_1 || ""}</td>
-              <td>${p.agent_2 || ""}</td>
-              <td>${p.agent_3 || ""}</td>
-              <td>${p.other_agency || ""}</td>
-            </tr>`
-          )
-          .join("");
-
-    const theadHtml = isGrades
-      ? `<tr><th>Name</th><th>Position</th><th>School</th><th>Class Year</th><th>Team</th><th>Scout</th><th>Date</th><th>Grade</th></tr>`
-      : `<tr><th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>`;
-
-    const colgroupHtml = isGrades
-      ? `<col style="width:18%" /><col style="width:9%" /><col style="width:10%" /><col style="width:10%" /><col style="width:9%" /><col style="width:15%" /><col style="width:12%" /><col style="width:9%" />`
-      : `<col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" /><col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />`;
-
     const rowCount = isGrades
       ? reportGradeRows.reduce((sum, p) => sum + p.sortedGrades.length, 0)
       : reportRows.length;
     const playerCount = isGrades ? reportGradeRows.length : reportRows.length;
+
+    let bodyContent;
+    let extraStyles = "";
+
+    if (isGrades) {
+      extraStyles = `
+  .player-block { margin-bottom: 14px; page-break-inside: avoid; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
+  .player-header {
+    background: #111;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+  }
+  .player-name { font-size: 16px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; }
+  .player-meta { font-size: 11.5px; color: #ccc; font-weight: 600; margin-left: 10px; }
+  .avg-badge { font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 4px; letter-spacing: 0.3px; }
+  .grades-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .grades-table th, .grades-table td { border: 1px solid #ddd; padding: 6px 9px; text-align: left; }
+  .grades-table th { background: #eee; color: #333; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 9.5px; }
+  .grades-table td.grade-cell { font-weight: 800; text-align: center; }
+`;
+      const blocks = reportGradeRows
+        .map((p) => {
+          const gradesHtml = p.sortedGrades
+            .map((g) => {
+              const t = gradeTier(Number(g.grade));
+              return `<tr>
+                <td>${g.team || ""}</td>
+                <td>${g.scout_name || g.scout || ""}</td>
+                <td>${g.month && g.year ? `${g.month}/${g.year}` : ""}</td>
+                <td class="grade-cell" style="background:${t.color};color:${t.text};">${Number(g.grade).toFixed(1)}</td>
+              </tr>`;
+            })
+            .join("");
+          return `<div class="player-block">
+            <div class="player-header">
+              <div>
+                <span class="player-name">${p.name}</span>
+                <span class="player-meta">${p.position} &middot; ${p.school || ""} &middot; Class of ${p.draft_class_year}</span>
+              </div>
+              <div class="avg-badge" style="background:${p.avgTier.color};color:${p.avgTier.text};">
+                AVG ${fmtGrade(p.avgGrade)}
+              </div>
+            </div>
+            <table class="grades-table">
+              <colgroup><col style="width:20%" /><col style="width:32%" /><col style="width:20%" /><col style="width:28%" /></colgroup>
+              <thead><tr><th>Team</th><th>Scout</th><th>Date</th><th>Grade</th></tr></thead>
+              <tbody>${gradesHtml}</tbody>
+            </table>
+          </div>`;
+        })
+        .join("");
+      bodyContent = blocks;
+    } else {
+      const rowsHtml = reportRows
+        .map(
+          (p) => `<tr>
+            <td>${p.name}</td>
+            <td>${p.position}</td>
+            <td>${p.school || ""}</td>
+            <td>${p.entry_year || ""}</td>
+            <td>${p.draft_class_year}</td>
+            <td>${p.agent_1 || ""}</td>
+            <td>${p.agent_2 || ""}</td>
+            <td>${p.agent_3 || ""}</td>
+            <td>${p.other_agency || ""}</td>
+          </tr>`
+        )
+        .join("");
+      bodyContent = `<table>
+        <colgroup>
+          <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
+          <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
+        </colgroup>
+        <thead>
+          <tr><th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>`;
+    }
 
     const html = `<!doctype html>
 <html>
@@ -537,6 +585,7 @@ export default function DraftBoard({ session }) {
     padding: 10px 24px 0;
     margin-top: 24px;
   }
+${extraStyles}
 </style>
 </head>
 <body>
@@ -552,11 +601,7 @@ export default function DraftBoard({ session }) {
     <h1>${isGrades ? "Grade Report" : "Prospect Report"}</h1>
     <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${playerCount} prospect${playerCount === 1 ? "" : "s"}${isGrades ? ` · ${rowCount} grade${rowCount === 1 ? "" : "s"}` : ""}</div>
     <div class="filters">FILTERS: ${filterLabel.toUpperCase()} &nbsp;·&nbsp; SORTED BY: ${sortLabel.toUpperCase()}</div>
-    <table>
-      <colgroup>${colgroupHtml}</colgroup>
-      <thead>${theadHtml}</thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>
+    ${bodyContent}
   </div>
   <div class="footer">
     <span>ATHLETES FIRST&nbsp;&nbsp;|&nbsp;&nbsp;CONFIDENTIAL</span>
