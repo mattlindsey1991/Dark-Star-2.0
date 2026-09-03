@@ -192,6 +192,8 @@ export default function DraftBoard({ session }) {
   const [editGradeDraft, setEditGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
   const [reportOpen, setReportOpen] = useState(false);
   const [reportFilters, setReportFilters] = useState({ agent: "", position: "", school: "", year: "" });
+  const [reportType, setReportType] = useState("list");
+  const [reportSortBy, setReportSortBy] = useState("name");
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
@@ -336,6 +338,26 @@ export default function DraftBoard({ session }) {
     return [...new Set(prospects.map((p) => p.school).filter(Boolean))].sort();
   }, [prospects]);
 
+  function lastNameOf(name) {
+    const parts = (name || "").trim().split(/\s+/);
+    return parts[parts.length - 1] || "";
+  }
+
+  function compareBySort(a, b, sortBy) {
+    switch (sortBy) {
+      case "lastName":
+        return lastNameOf(a.name).localeCompare(lastNameOf(b.name)) || a.name.localeCompare(b.name);
+      case "school":
+        return (a.school || "").localeCompare(b.school || "") || a.name.localeCompare(b.name);
+      case "position":
+        return (a.position || "").localeCompare(b.position || "") || a.name.localeCompare(b.name);
+      case "classYear":
+        return (a.draft_class_year || 0) - (b.draft_class_year || 0) || a.name.localeCompare(b.name);
+      default:
+        return a.name.localeCompare(b.name);
+    }
+  }
+
   const reportRows = useMemo(() => {
     return prospects
       .filter((p) => {
@@ -348,31 +370,66 @@ export default function DraftBoard({ session }) {
         }
         return true;
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [prospects, reportFilters]);
+      .sort((a, b) => compareBySort(a, b, reportSortBy));
+  }, [prospects, reportFilters, reportSortBy]);
+
+  const reportGradeRows = useMemo(() => {
+    return reportRows
+      .filter((p) => p.grades && p.grades.length > 0)
+      .map((p) => ({
+        ...p,
+        sortedGrades: [...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)),
+      }));
+  }, [reportRows]);
+
+  const SORT_LABELS = { name: "Name", lastName: "Last Name", school: "School", position: "Position", classYear: "Class Year" };
 
   function handleExportReportExcel() {
-    const rows = reportRows.map((p) => ({
-      Name: p.name,
-      Position: p.position,
-      School: p.school || "",
-      "Entry Year": p.entry_year || "",
-      "Class Year": p.draft_class_year,
-      "Agent 1": p.agent_1 || "",
-      "Agent 2": p.agent_2 || "",
-      "Agent 3": p.agent_3 || "",
-      "Other Agency": p.other_agency || "",
-    }));
+    let rows;
+    let sheetName;
+    if (reportType === "grades") {
+      rows = [];
+      reportGradeRows.forEach((p) => {
+        p.sortedGrades.forEach((g) => {
+          rows.push({
+            Name: p.name,
+            Position: p.position,
+            School: p.school || "",
+            "Class Year": p.draft_class_year,
+            Team: g.team || "",
+            Scout: g.scout_name || g.scout || "",
+            Month: g.month || "",
+            Year: g.year || "",
+            Grade: Number(g.grade).toFixed(1),
+          });
+        });
+      });
+      sheetName = "Grade Report";
+    } else {
+      rows = reportRows.map((p) => ({
+        Name: p.name,
+        Position: p.position,
+        School: p.school || "",
+        "Entry Year": p.entry_year || "",
+        "Class Year": p.draft_class_year,
+        "Agent 1": p.agent_1 || "",
+        "Agent 2": p.agent_2 || "",
+        "Agent 3": p.agent_3 || "",
+        "Other Agency": p.other_agency || "",
+      }));
+      sheetName = "Report";
+    }
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
     const filterBits = [
       reportFilters.agent && `Agent-${reportFilters.agent}`,
       reportFilters.position && `Pos-${reportFilters.position}`,
       reportFilters.school && `School-${reportFilters.school}`,
       reportFilters.year && `Year-${reportFilters.year}`,
     ].filter(Boolean);
-    const filename = `BigBoard_Report${filterBits.length ? "_" + filterBits.join("_") : ""}.xlsx`;
+    const typeLabel = reportType === "grades" ? "GradeReport" : "Report";
+    const filename = `BigBoard_${typeLabel}${filterBits.length ? "_" + filterBits.join("_") : ""}.xlsx`;
     XLSX.writeFile(wb, filename);
   }
 
@@ -384,21 +441,54 @@ export default function DraftBoard({ session }) {
       reportFilters.year && `Class Year: ${reportFilters.year}`,
     ].filter(Boolean);
     const filterLabel = filterLabelParts.length ? filterLabelParts.join(" · ") : "All Prospects";
-    const rowsHtml = reportRows
-      .map(
-        (p) => `<tr>
-          <td>${p.name}</td>
-          <td>${p.position}</td>
-          <td>${p.school || ""}</td>
-          <td>${p.entry_year || ""}</td>
-          <td>${p.draft_class_year}</td>
-          <td>${p.agent_1 || ""}</td>
-          <td>${p.agent_2 || ""}</td>
-          <td>${p.agent_3 || ""}</td>
-          <td>${p.other_agency || ""}</td>
-        </tr>`
-      )
-      .join("");
+    const sortLabel = SORT_LABELS[reportSortBy] || "Name";
+
+    const isGrades = reportType === "grades";
+    const rowsHtml = isGrades
+      ? reportGradeRows
+          .map((p) =>
+            p.sortedGrades
+              .map(
+                (g, idx) => `<tr>
+                  ${idx === 0 ? `<td rowspan="${p.sortedGrades.length}">${p.name}</td><td rowspan="${p.sortedGrades.length}">${p.position}</td><td rowspan="${p.sortedGrades.length}">${p.school || ""}</td><td rowspan="${p.sortedGrades.length}">${p.draft_class_year}</td>` : ""}
+                  <td>${g.team || ""}</td>
+                  <td>${g.scout_name || g.scout || ""}</td>
+                  <td>${g.month && g.year ? `${g.month}/${g.year}` : ""}</td>
+                  <td>${Number(g.grade).toFixed(1)}</td>
+                </tr>`
+              )
+              .join("")
+          )
+          .join("")
+      : reportRows
+          .map(
+            (p) => `<tr>
+              <td>${p.name}</td>
+              <td>${p.position}</td>
+              <td>${p.school || ""}</td>
+              <td>${p.entry_year || ""}</td>
+              <td>${p.draft_class_year}</td>
+              <td>${p.agent_1 || ""}</td>
+              <td>${p.agent_2 || ""}</td>
+              <td>${p.agent_3 || ""}</td>
+              <td>${p.other_agency || ""}</td>
+            </tr>`
+          )
+          .join("");
+
+    const theadHtml = isGrades
+      ? `<tr><th>Name</th><th>Position</th><th>School</th><th>Class Year</th><th>Team</th><th>Scout</th><th>Date</th><th>Grade</th></tr>`
+      : `<tr><th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>`;
+
+    const colgroupHtml = isGrades
+      ? `<col style="width:18%" /><col style="width:9%" /><col style="width:10%" /><col style="width:10%" /><col style="width:9%" /><col style="width:15%" /><col style="width:12%" /><col style="width:9%" />`
+      : `<col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" /><col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />`;
+
+    const rowCount = isGrades
+      ? reportGradeRows.reduce((sum, p) => sum + p.sortedGrades.length, 0)
+      : reportRows.length;
+    const playerCount = isGrades ? reportGradeRows.length : reportRows.length;
+
     const html = `<!doctype html>
 <html>
 <head>
@@ -427,9 +517,9 @@ export default function DraftBoard({ session }) {
   .subtitle { font-size: 11.5px; color: #555; margin-bottom: 2px; }
   .filters { font-size: 11.5px; color: #333; margin-bottom: 18px; font-weight: 700; }
   table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; }
-  th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: left; overflow-wrap: break-word; }
+  th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: left; overflow-wrap: break-word; vertical-align: top; }
   th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 8px; }
-  tr:nth-child(even) td { background: #f4f4f4; }
+  tbody tr:nth-child(even) td { background: #f4f4f4; }
   colgroup col.col-name { width: 20%; }
   colgroup col.col-pos { width: 8%; }
   colgroup col.col-school { width: 10%; }
@@ -454,25 +544,17 @@ export default function DraftBoard({ session }) {
     <div class="brand">ATHLETES &middot; FIRST</div>
     <div class="doctype">
       <div class="line1">THE BIG BOARD</div>
-      <div class="line2">PROSPECT REPORT</div>
+      <div class="line2">${isGrades ? "GRADE REPORT" : "PROSPECT REPORT"}</div>
     </div>
   </div>
   <div class="accent-line"></div>
   <div class="content">
-    <h1>Prospect Report</h1>
-    <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"}</div>
-    <div class="filters">FILTERS: ${filterLabel.toUpperCase()}</div>
+    <h1>${isGrades ? "Grade Report" : "Prospect Report"}</h1>
+    <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${playerCount} prospect${playerCount === 1 ? "" : "s"}${isGrades ? ` · ${rowCount} grade${rowCount === 1 ? "" : "s"}` : ""}</div>
+    <div class="filters">FILTERS: ${filterLabel.toUpperCase()} &nbsp;·&nbsp; SORTED BY: ${sortLabel.toUpperCase()}</div>
     <table>
-      <colgroup>
-        <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
-        <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th>
-          <th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th>
-        </tr>
-      </thead>
+      <colgroup>${colgroupHtml}</colgroup>
+      <thead>${theadHtml}</thead>
       <tbody>${rowsHtml}</tbody>
     </table>
   </div>
@@ -1516,6 +1598,31 @@ export default function DraftBoard({ session }) {
                 </button>
               </div>
 
+              <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden", marginBottom: "16px" }}>
+                {[
+                  { key: "list", label: "Prospect List" },
+                  { key: "grades", label: "Grade Report" },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setReportType(t.key)}
+                    style={{
+                      flex: 1,
+                      fontFamily: "'Bebas Neue', sans-serif",
+                      fontSize: "14px",
+                      letterSpacing: "0.8px",
+                      padding: "8px 10px",
+                      border: "none",
+                      cursor: "pointer",
+                      background: reportType === t.key ? "rgba(201,151,62,0.14)" : "transparent",
+                      color: reportType === t.key ? "#C9973E" : COLORS.inkDim,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agent</label>
               <select
                 className="db-input"
@@ -1558,7 +1665,7 @@ export default function DraftBoard({ session }) {
               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Class year</label>
               <select
                 className="db-input"
-                style={{ width: "100%", marginBottom: "16px" }}
+                style={{ width: "100%", marginBottom: "10px" }}
                 value={reportFilters.year}
                 onChange={(e) => setReportFilters({ ...reportFilters, year: e.target.value })}
               >
@@ -1568,15 +1675,31 @@ export default function DraftBoard({ session }) {
                 ))}
               </select>
 
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Sort by</label>
+              <select
+                className="db-input"
+                style={{ width: "100%", marginBottom: "16px" }}
+                value={reportSortBy}
+                onChange={(e) => setReportSortBy(e.target.value)}
+              >
+                <option value="name">Name</option>
+                <option value="lastName">Last Name</option>
+                <option value="school">School</option>
+                <option value="position">Position</option>
+                <option value="classYear">Class Year</option>
+              </select>
+
               <div style={{ fontSize: "12px", color: COLORS.inkDim, marginBottom: "16px" }}>
-                {reportRows.length} prospect{reportRows.length === 1 ? "" : "s"} match{reportRows.length === 1 ? "es" : ""} these filters.
+                {reportType === "grades"
+                  ? `${reportGradeRows.length} prospect${reportGradeRows.length === 1 ? "" : "s"} with grades match these filters.`
+                  : `${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"} match these filters.`}
               </div>
 
               <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                 <button
                   className="db-btn"
                   onClick={handlePrintReport}
-                  disabled={reportRows.length === 0}
+                  disabled={reportType === "grades" ? reportGradeRows.length === 0 : reportRows.length === 0}
                   style={{ flex: 1, padding: "9px", color: accent, borderColor: accent, fontSize: "12.5px" }}
                 >
                   Print Report
@@ -1584,7 +1707,7 @@ export default function DraftBoard({ session }) {
                 <button
                   className="db-btn"
                   onClick={handleExportReportExcel}
-                  disabled={reportRows.length === 0}
+                  disabled={reportType === "grades" ? reportGradeRows.length === 0 : reportRows.length === 0}
                   style={{ flex: 1, padding: "9px", fontSize: "12.5px" }}
                 >
                   Export Excel
