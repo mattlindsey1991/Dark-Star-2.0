@@ -393,6 +393,10 @@ export default function DraftBoard({ session }) {
 
   const SORT_LABELS = { name: "Name", lastName: "Last Name", school: "School", position: "Position", classYear: "Class Year" };
 
+  function schoolNameOf(code) {
+    return (code && SCHOOL_CODE_TO_NAME[code]) || code || "";
+  }
+
   function handleExportReportExcel() {
     let rows;
     let sheetName;
@@ -403,7 +407,7 @@ export default function DraftBoard({ session }) {
           rows.push({
             Name: p.name,
             Position: p.position,
-            School: p.school || "",
+            School: schoolNameOf(p.school),
             "Class Year": p.draft_class_year,
             "Average Grade": fmtGrade(p.avgGrade),
             Team: g.team || "",
@@ -419,7 +423,7 @@ export default function DraftBoard({ session }) {
       rows = reportRows.map((p) => ({
         Name: p.name,
         Position: p.position,
-        School: p.school || "",
+        School: schoolNameOf(p.school),
         "Entry Year": p.entry_year || "",
         "Class Year": p.draft_class_year,
         "Agent 1": p.agent_1 || "",
@@ -498,7 +502,7 @@ export default function DraftBoard({ session }) {
             <div class="player-header">
               <div>
                 <span class="player-name">${p.name}</span>
-                <span class="player-meta">${p.position} &middot; ${p.school || ""} &middot; Class of ${p.draft_class_year}</span>
+                <span class="player-meta">${p.position} &middot; ${schoolNameOf(p.school)} &middot; Class of ${p.draft_class_year}</span>
               </div>
               <div class="avg-badge" style="background:${p.avgTier.color};color:${p.avgTier.text};">
                 AVG ${fmtGrade(p.avgGrade)}
@@ -519,7 +523,7 @@ export default function DraftBoard({ session }) {
           (p) => `<tr>
             <td>${p.name}</td>
             <td>${p.position}</td>
-            <td>${p.school || ""}</td>
+            <td>${schoolNameOf(p.school)}</td>
             <td>${p.entry_year || ""}</td>
             <td>${p.draft_class_year}</td>
             <td>${p.agent_1 || ""}</td>
@@ -572,13 +576,13 @@ export default function DraftBoard({ session }) {
   th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: left; overflow-wrap: break-word; vertical-align: top; }
   th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 8px; }
   tbody tr:nth-child(even) td { background: #f4f4f4; }
-  colgroup col.col-name { width: 20%; }
-  colgroup col.col-pos { width: 8%; }
-  colgroup col.col-school { width: 10%; }
-  colgroup col.col-entry { width: 10%; }
-  colgroup col.col-class { width: 10%; }
-  colgroup col.col-agent { width: 8%; }
-  colgroup col.col-other { width: 18%; }
+  colgroup col.col-name { width: 18%; }
+  colgroup col.col-pos { width: 7%; }
+  colgroup col.col-school { width: 16%; }
+  colgroup col.col-entry { width: 9%; }
+  colgroup col.col-class { width: 9%; }
+  colgroup col.col-agent { width: 7%; }
+  colgroup col.col-other { width: 20%; }
   .footer {
     display: flex;
     justify-content: space-between;
