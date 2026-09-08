@@ -2115,7 +2115,7 @@ ${extraStyles}
                               <div style={{ fontSize: "10.5px", color: COLORS.inkDim, marginBottom: "5px" }}>
                                 Scout grades ({p.grades.length})
                               </div>
-                              {p.grades.map((g) =>
+                              {[...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)).map((g) =>
                                 editingGradeId === g.id ? (
                                   <div key={g.id} style={{ marginBottom: "6px", padding: "6px", background: "rgba(236,231,220,0.05)", borderRadius: "4px" }} onClick={(e) => e.stopPropagation()}>
                                     <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
