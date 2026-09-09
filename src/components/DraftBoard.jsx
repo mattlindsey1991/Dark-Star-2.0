@@ -29,6 +29,14 @@ const GRADE_SCALE = [1.0, 1.2, 1.5, 1.8, 2.0, 2.2, 2.5, 2.8, 3.3, 3.8, 4.3, 4.8,
 
 const AGENT_INITIALS = ["AK", "AL", "AS", "BB", "BM", "BR", "CH", "CHud", "CS", "CW", "DD", "DJ", "DM", "EB", "JF", "JL", "JM", "JP", "JS", "KA", "KM", "LA", "MD", "RH", "RW", "SK", "TA", "TD", "TF", "TP", "TS"];
 
+const AGENT_INITIAL_TO_LASTNAME = {
+  TA: "Allen", KA: "Anio", LA: "Anthony", EB: "Baird", BB: "Burney", DD: "Dunn", JF: "Ferrari",
+  TF: "France", CH: "Hahn", RH: "Hesam", CHud: "Hudson", AK: "Kessler", SK: "Kiernan", JL: "Love",
+  AL: "Lyman", KM: "McCarthy", JM: "McGeehan", DM: "Mulugheta", BM: "Murphy", JP: "Panos",
+  TP: "Povinelli", BR: "Roche", CS: "Saslow", TS: "Smith", AS: "Stevens", CW: "Wallace",
+  RW: "Williams", TD: "Dandy", MD: "Deegan", JS: "Schulman", DJ: "Joyner",
+};
+
 const SCHOOL_CODES = ["ALAM", "ALAU", "ALBS", "ALCO", "ALFA", "ALHU", "ALJA", "ALLI", "ALMI", "ALNO", "ALSL", "ALSM", "ALSO", "ALST", "ALTR", "ALTU", "ALUN", "ARCE", "ARCF", "ARHA", "ARHE", "ARHN", "ARMA", "ARMO", "AROU", "ARPB", "ARST", "ARTC", "ARUN", "AZCH", "AZNO", "AZPH", "AZPI", "AZSC", "AZST", "AZUN", "CAAZ", "CABU", "CACC", "CACM", "CADA", "CADV", "CAFR", "CAHU", "CALA", "CALG", "CALU", "CALV", "CAME", "CAMS", "CAOC", "CAPC", "CAPZ", "CARD", "CARE", "CASA", "CASC", "CASJ", "CASL", "CASS", "CAST", "CASU", "CAUN", "CAWH", "CNCA", "CNMC", "CNSF", "COAD", "COAF", "COFL", "COME", "COMI", "CONO", "COSO", "COST", "COUN", "COWE", "CTCE", "CTCG", "CTNH", "CTSH", "CTSO", "CTTR", "CTUN", "CTWE", "CTWS", "CTYA", "DCCA", "DCGA", "DCGT", "DCHO", "DEST", "DEUN", "DEWC", "FLAM", "FLAT", "FLAV", "FLBC", "FLCE", "FLEW", "FLFT", "FLIN", "FLJA", "FLMI", "FLSE", "FLSO", "FLSS", "FLST", "FLTC", "FLUN", "FLWE", "FLWR", "GAAL", "GABE", "GACL", "GAFV", "GAKE", "GALA", "GAME", "GAMH", "GAPA", "GAPT", "GARE", "GASA", "GASH", "GASO", "GAST", "GATC", "GAUN", "GAVA", "GAWG", "HIUN", "IABC", "IABV", "IACE", "IACO", "IACR", "IADO", "IADR", "IADU", "IAGN", "IAGV", "IALO", "IALU", "IAMO", "IANO", "IANW", "IASA", "IASI", "IAST", "IAUN", "IAUP", "IAWA", "IAWL", "IAWP", "IAWS", "IDBO", "IDCO", "IDST", "IDUN", "ILAR", "ILAU", "ILBE", "ILCH", "ILCL", "ILCT", "ILEA", "ILEL", "ILEU", "ILGV", "ILKN", "ILLB", "ILLF", "ILMC", "ILMI", "ILMK", "ILMO", "ILNC", "ILNO", "ILNP", "ILNW", "ILOL", "ILQU", "ILRF", "ILRM", "ILSO", "ILST", "ILSX", "ILTR", "ILUN", "ILWE", "ILWH", "ILWS", "INAN", "INBS", "INBU", "INCE", "INDE", "INEA", "INFR", "INHA", "INMA", "INMC", "INND", "INPU", "INSF", "INSJ", "INST", "INTA", "INUN", "INVA", "INWA", "KSBA", "KSBL", "KSBN", "KSBY", "KSFH", "KSFR", "KSHA", "KSMC", "KSOT", "KSPS", "KSSG", "KSSM", "KSST", "KSSW", "KSTA", "KSTH", "KSUN", "KSWA", "KSWS", "KYCA", "KYCC", "KYCH", "KYCN", "KYEA", "KYGT", "KYLO", "KYLW", "KYMO", "KYMU", "KYPV", "KYST", "KYTM", "KYUC", "KYUN", "KYWE", "KYWS", "LAGR", "LALC", "LAMC", "LANE", "LANI", "LANW", "LASE", "LASO", "LAST", "LASW", "LATC", "LATU", "MAAI", "MAAM", "MAAN", "MAAS", "MABC", "MABE", "MABK", "MABR", "MACU", "MAEN", "MAFI", "MAFR", "MAHA", "MAHC", "MAMA", "MAMI", "MAMK", "MANI", "MASE", "MASP", "MAST", "MATC", "MATU", "MAUN", "MAWF", "MAWI", "MAWP", "MAWS", "MDBO", "MDFR", "MDJH", "MDMO", "MDNA", "MDSA", "MDSN", "MDTO", "MDUN", "MDWE", "MEBA", "MEBO", "MECO", "MEHU", "MEMA", "MEUN", "MIAB", "MIAD", "MIAM", "MICE", "MICO", "MIEA", "MIFE", "MIGV", "MIHI", "MIHO", "MIKA", "MINO", "MINW", "MIOL", "MISH", "MIST", "MISV", "MITC", "MIUN", "MIWA", "MIWE", "MNAV", "MNBM", "MNBT", "MNCA", "MNCO", "MNCR", "MNDU", "MNGA", "MNHA", "MNMA", "MNMC", "MNMH", "MNML", "MNMS", "MNNW", "MNPB", "MNSC", "MNSJ", "MNSO", "MNSP", "MNST", "MNSW", "MNUN", "MNWI", "MOBP", "MOCE", "MOCM", "MOCS", "MOLN", "MOLW", "MONE", "MONW", "MORO", "MOSB", "MOSE", "MOSO", "MOSW", "MOUN", "MOVA", "MOWA", "MOWE", "MOWJ", "MOWM", "MSAL", "MSBH", "MSCO", "MSDE", "MSGC", "MSHI", "MSJA", "MSJC", "MSMI", "MSSO", "MSST", "MSUN", "MSVA", "MTCA", "MTCL", "MTRM", "MTSN", "MTST", "MTUN", "MTWE", "NCAP", "NCAT", "NCBR", "NCCA", "NCCE", "NCCH", "NCCM", "NCCR", "NCDA", "NCDU", "NCEA", "NCEL", "NCFA", "NCFT", "NCGR", "NCGU", "NCGW", "NCJC", "NCLI", "NCLR", "NCME", "NCMH", "NCPM", "NCSA", "NCSH", "NCSM", "NCST", "NCUN", "NCWC", "NCWE", "NCWF", "NCWI", "NCWS", "NDDI", "NDJA", "NDMA", "NDMI", "NDMY", "NDST", "NDUN", "NECH", "NECO", "NEDO", "NEHA", "NEKE", "NELU", "NEUN", "NEWA", "NEWS", "NHDA", "NHPL", "NHSA", "NHUN", "NJFD", "NJGL", "NJKE", "NJMC", "NJMO", "NJPR", "NJRU", "NJTR", "NJWP", "NMEA", "NMHI", "NMST", "NMUN", "NMWE", "NVLV", "NVRE", "NYAB", "NYAF", "NYAL", "NYBC", "NYBP", "NYBU", "NYCG", "NYCL", "NYCN", "NYCT", "NYCW", "NYER", "NYFO", "NYHA", "NYHB", "NYHW", "NYIT", "NYJF", "NYMA", "NYMM", "NYMO", "NYMR", "NYPA", "NYRE", "NYRU", "NYSL", "NYST", "NYSY", "NYUN", "NYUT", "NYWA", "NYWP", "OHAK", "OHAS", "OHBG", "OHBL", "OHBW", "OHCE", "OHCI", "OHCU", "OHCW", "OHDA", "OHDF", "OHDN", "OHDO", "OHFI", "OHHE", "OHHI", "OHJC", "OHKE", "OHKS", "OHLE", "OHMA", "OHMI", "OHML", "OHMS", "OHMT", "OHND", "OHNO", "OHOB", "OHOT", "OHSJ", "OHST", "OHTI", "OHTO", "OHUN", "OHUR", "OHWA", "OHWL", "OHWO", "OHWS", "OHWT", "OHYO", "OKBC", "OKBP", "OKCE", "OKEC", "OKLA", "OKNE", "OKNW", "OKPH", "OKSE", "OKSN", "OKST", "OKSW", "OKTU", "OKUN", "ORCL", "OREA", "ORGF", "ORLC", "ORLI", "ORPA", "ORPS", "ORSO", "ORST", "ORUN", "ORWI", "PAAB", "PAAG", "PABL", "PABU", "PACA", "PACH", "PACL", "PACS", "PADI", "PADU", "PADV", "PAED", "PAES", "PAFM", "PAGA", "PAGB", "PAGC", "PAGN", "PAIU", "PAJU", "PAKI", "PAKU", "PALE", "PALF", "PALH", "PALN", "PALV", "PALY", "PAME", "PAMI", "PAMO", "PAMS", "PAMU", "PAPT", "PARM", "PASE", "PASF", "PASH", "PASR", "PAST", "PASU", "PASV", "PATE", "PATH", "PAUN", "PAUR", "PAVI", "PAWB", "PAWC", "PAWD", "PAWJ", "PAWL", "PAWM", "RIBR", "RIBT", "RISR", "RIUN", "SCBC", "SCCC", "SCCH", "SCCI", "SCCL", "SCFU", "SCLC", "SCNE", "SCNG", "SCPR", "SCST", "SCUN", "SCWO", "SDAU", "SDBH", "SDDS", "SDMI", "SDNO", "SDPR", "SDSF", "SDST", "SDVE", "SDWS", "TNAI", "TNAP", "TNBC", "TNCC", "TNCH", "TNCN", "TNEA", "TNLA", "TNMA", "TNMI", "TNMR", "TNMS", "TNSW", "TNTC", "TNTU", "TNUN", "TNUS", "TNVA", "TXAC", "TXAI", "TXAM", "TXAN", "TXAU", "TXBA", "TXBL", "TXBP", "TXCL", "TXCU", "TXEA", "TXEP", "TXHB", "TXHO", "TXHP", "TXHS", "TXHT", "TXIW", "TXLA", "TXLU", "TXMC", "TXMU", "TXMW", "TXNO", "TXPV", "TXRI", "TXSF", "TXSH", "TXSN", "TXSO", "TXSR", "TXSU", "TXSW", "TXTA", "TXTC", "TXTR", "TXTY", "TXUN", "TXWB", "TXWE", "UTBY", "UTDX", "UTSO", "UTST", "UTUN", "UTWB", "VAAV", "VABL", "VABR", "VACN", "VAEH", "VAFC", "VAHI", "VAHS", "VAJM", "VALB", "VALY", "VAMI", "VANN", "VANO", "VAOD", "VAPE", "VAPI", "VARI", "VARM", "VASI", "VASU", "VAUN", "VAVU", "VAWL", "VAWM", "VTCA", "VTMI", "VTNO", "WACE", "WAEA", "WAPL", "WAPU", "WAST", "WAUN", "WAWW", "WIBE", "WICC", "WICG", "WICL", "WIEC", "WILC", "WILK", "WILU", "WILW", "WIME", "WIMR", "WIOS", "WIPL", "WIRF", "WIRI", "WISN", "WISP", "WIUN", "WIWH", "WVAB", "WVBE", "WVCH", "WVCO", "WVFA", "WVGL", "WVMA", "WVSH", "WVST", "WVUN", "WVWE", "WVWL", "WYUN"];
 
 const RECRUITING_STATUS_OPTIONS = ["0-SIGNED", "1-COMMITTED/NO REP K", "2-LEADING", "3-FINALIST", "4-IN THE MIX", "5-IN CONTACT", "6-REACHED OUT", "7-NEW ASSIGNMENT/OTHER", "8-OUTSIDE LOOKING IN", "9-SIGNED ELSEWHERE"];
@@ -399,6 +407,10 @@ export default function DraftBoard({ session }) {
     return (code && SCHOOL_CODE_TO_NAME[code]) || code || "";
   }
 
+  function agentNameOf(initial) {
+    return (initial && AGENT_INITIAL_TO_LASTNAME[initial]) || initial || "";
+  }
+
   function handleExportReportExcel() {
     let rows;
     let sheetName;
@@ -422,17 +434,22 @@ export default function DraftBoard({ session }) {
       });
       sheetName = "Grade Report";
     } else {
-      rows = reportRows.map((p) => ({
-        Name: p.name,
-        Position: p.position,
-        School: schoolNameOf(p.school),
-        "Entry Year": p.entry_year || "",
-        "Class Year": p.draft_class_year,
-        "Agent 1": p.agent_1 || "",
-        "Agent 2": p.agent_2 || "",
-        "Agent 3": p.agent_3 || "",
-        "Other Agency": p.other_agency || "",
-      }));
+      rows = reportRows.map((p) => {
+        const avg = computeAvg(p.grades);
+        return {
+          Name: p.name,
+          "Pos.": p.position,
+          School: schoolNameOf(p.school),
+          "Entry Year": p.entry_year || "",
+          "Class Year": p.draft_class_year,
+          "NFL Grade": fmtGrade(avg),
+          "Recruiting Status": p.recruiting_status || "",
+          "Agent 1": agentNameOf(p.agent_1),
+          "Agent 2": agentNameOf(p.agent_2),
+          "Agent 3": agentNameOf(p.agent_3),
+          "Other Agency": p.other_agency || "",
+        };
+      });
       sheetName = "Report";
     }
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -521,27 +538,32 @@ export default function DraftBoard({ session }) {
       bodyContent = blocks;
     } else {
       const rowsHtml = reportRows
-        .map(
-          (p) => `<tr>
+        .map((p) => {
+          const avg = computeAvg(p.grades);
+          const tier = gradeTier(avg);
+          return `<tr>
             <td>${p.name}</td>
             <td>${p.position}</td>
             <td>${schoolNameOf(p.school)}</td>
             <td>${p.entry_year || ""}</td>
             <td>${p.draft_class_year}</td>
-            <td>${p.agent_1 || ""}</td>
-            <td>${p.agent_2 || ""}</td>
-            <td>${p.agent_3 || ""}</td>
+            <td style="background:${tier.color};color:${tier.text};font-weight:800;text-align:center;">${fmtGrade(avg)}</td>
+            <td>${p.recruiting_status || ""}</td>
+            <td>${agentNameOf(p.agent_1)}</td>
+            <td>${agentNameOf(p.agent_2)}</td>
+            <td>${agentNameOf(p.agent_3)}</td>
             <td>${p.other_agency || ""}</td>
-          </tr>`
-        )
+          </tr>`;
+        })
         .join("");
       bodyContent = `<table>
         <colgroup>
           <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
+          <col class="col-grade" /><col class="col-status" />
           <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
         </colgroup>
         <thead>
-          <tr><th>Name</th><th>Position</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>
+          <tr><th>Name</th><th>Pos.</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>NFL Grade</th><th>Recruiting Status</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>`;
@@ -578,13 +600,15 @@ export default function DraftBoard({ session }) {
   th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: left; overflow-wrap: break-word; vertical-align: top; }
   th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 8px; }
   tbody tr:nth-child(even) td { background: #f4f4f4; }
-  colgroup col.col-name { width: 18%; }
-  colgroup col.col-pos { width: 7%; }
-  colgroup col.col-school { width: 16%; }
-  colgroup col.col-entry { width: 9%; }
-  colgroup col.col-class { width: 9%; }
-  colgroup col.col-agent { width: 7%; }
-  colgroup col.col-other { width: 20%; }
+  colgroup col.col-name { width: 14%; }
+  colgroup col.col-pos { width: 6%; }
+  colgroup col.col-school { width: 12%; }
+  colgroup col.col-entry { width: 7%; }
+  colgroup col.col-class { width: 7%; }
+  colgroup col.col-grade { width: 8%; }
+  colgroup col.col-status { width: 14%; }
+  colgroup col.col-agent { width: 8%; }
+  colgroup col.col-other { width: 8%; }
   .footer {
     display: flex;
     justify-content: space-between;
