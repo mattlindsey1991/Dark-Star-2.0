@@ -548,7 +548,7 @@ export default function DraftBoard({ session }) {
             <td>${p.entry_year || ""}</td>
             <td>${p.draft_class_year}</td>
             <td style="background:${tier.color};color:${tier.text};font-weight:800;text-align:center;">${fmtGrade(avg)}</td>
-            <td>${p.recruiting_status || ""}</td>
+            <td class="status-cell">${p.recruiting_status || ""}</td>
             <td>${agentNameOf(p.agent_1)}</td>
             <td>${agentNameOf(p.agent_2)}</td>
             <td>${agentNameOf(p.agent_3)}</td>
@@ -607,6 +607,7 @@ export default function DraftBoard({ session }) {
   colgroup col.col-class { width: 7%; }
   colgroup col.col-grade { width: 8%; }
   colgroup col.col-status { width: 14%; }
+  td.status-cell { white-space: nowrap; overflow: hidden; font-size: 6.5px; }
   colgroup col.col-agent { width: 8%; }
   colgroup col.col-other { width: 8%; }
   .footer {
