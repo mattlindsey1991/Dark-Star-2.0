@@ -584,7 +584,7 @@ export default function DraftBoard({ session }) {
           const avg = computeAvg(p.grades);
           const tier = gradeTier(avg);
           return `<tr>
-            <td>${p.name}</td>
+            <td style="font-weight:800;">${p.name}</td>
             <td>${p.position}</td>
             <td>${schoolNameOf(p.school)}</td>
             <td>${p.entry_year || ""}</td>
@@ -619,7 +619,7 @@ export default function DraftBoard({ session }) {
               .map((slot, idx) => {
                 const label = idx === 0 ? "Agent 1" : idx === 1 ? "Agent 2" : "Agent 3";
                 const cells = GRID_POSITIONS.map((pos) => `<td>${g.grid[y][pos][slot]}</td>`).join("");
-                return `<tr>${idx === 0 ? `<td rowspan="3">${y}</td>` : ""}<td>${label}</td>${cells}</tr>`;
+                return `<tr>${idx === 0 ? `<td rowspan="3">${y}</td>` : ""}<td class="grid-label-cell">${label}</td>${cells}</tr>`;
               })
               .join("")
           )
@@ -704,7 +704,7 @@ export default function DraftBoard({ session }) {
     border: 1px solid #ccc; padding: 3px 4px; text-align: center;
   }
   .agent-grid-table th, .agent-grid-summary th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 7.5px; }
-  .agent-grid-table td:nth-child(2), .agent-grid-summary td:first-child { text-align: left; font-weight: 600; }
+  .agent-grid-table td.grid-label-cell, .agent-grid-summary td:first-child { text-align: left; font-weight: 600; }
   .grid-totals-row td { background: #eee; font-weight: 800; }
 ${extraStyles}
 </style>
