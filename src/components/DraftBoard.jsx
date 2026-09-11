@@ -207,6 +207,7 @@ export default function DraftBoard({ session }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportFilters, setReportFilters] = useState({ agent: "", position: "", school: "", year: "" });
   const [reportType, setReportType] = useState("list");
+  const [reportShowAgentGrid, setReportShowAgentGrid] = useState(false);
   const [reportSortBy, setReportSortBy] = useState("name");
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
@@ -401,6 +402,47 @@ export default function DraftBoard({ session }) {
       });
   }, [reportRows]);
 
+  const GRID_POSITIONS = ["QB", "RB", "WR", "TE", "OT", "OG", "OC", "DL", "EDGE", "LB", "DS", "DC", "PK", "PT", "LS"];
+
+  const agentGridData = useMemo(() => {
+    const agent = reportFilters.agent;
+    if (!agent) return null;
+    const years = [...new Set(reportRows.map((p) => p.draft_class_year))].sort((a, b) => a - b);
+    if (years.length === 0) return null;
+
+    const cell = () => ({ Agent1: 0, Agent2: 0, Agent3: 0 });
+    const grid = {};
+    years.forEach((y) => {
+      grid[y] = {};
+      GRID_POSITIONS.forEach((pos) => {
+        grid[y][pos] = cell();
+      });
+    });
+
+    reportRows.forEach((p) => {
+      const y = p.draft_class_year;
+      const pos = p.position;
+      if (!grid[y] || !grid[y][pos]) return;
+      if (p.agent_1 === agent) grid[y][pos].Agent1 += 1;
+      if (p.agent_2 === agent) grid[y][pos].Agent2 += 1;
+      if (p.agent_3 === agent) grid[y][pos].Agent3 += 1;
+    });
+
+    const positionTotals = {};
+    GRID_POSITIONS.forEach((pos) => {
+      positionTotals[pos] = years.reduce((sum, y) => sum + grid[y][pos].Agent1 + grid[y][pos].Agent2 + grid[y][pos].Agent3, 0);
+    });
+
+    const yearTotals = years.map((y) => {
+      const a1 = GRID_POSITIONS.reduce((sum, pos) => sum + grid[y][pos].Agent1, 0);
+      const a2 = GRID_POSITIONS.reduce((sum, pos) => sum + grid[y][pos].Agent2, 0);
+      const a3 = GRID_POSITIONS.reduce((sum, pos) => sum + grid[y][pos].Agent3, 0);
+      return { year: y, agent1: a1, agent2: a2, agent3: a3, total: a1 + a2 + a3 };
+    });
+
+    return { agent, years, grid, positionTotals, yearTotals };
+  }, [reportRows, reportFilters.agent]);
+
   const SORT_LABELS = { name: "Name", lastName: "Last Name", school: "School", position: "Position", classYear: "Class Year" };
 
   function schoolNameOf(code) {
@@ -567,6 +609,41 @@ export default function DraftBoard({ session }) {
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>`;
+
+      if (reportShowAgentGrid && agentGridData) {
+        const g = agentGridData;
+        const posHeaderCells = GRID_POSITIONS.map((pos) => `<th>${pos}</th>`).join("");
+        const yearRows = g.years
+          .map((y) =>
+            ["Agent1", "Agent2", "Agent3"]
+              .map((slot, idx) => {
+                const label = idx === 0 ? "Agent 1" : idx === 1 ? "Agent 2" : "Agent 3";
+                const cells = GRID_POSITIONS.map((pos) => `<td>${g.grid[y][pos][slot]}</td>`).join("");
+                return `<tr>${idx === 0 ? `<td rowspan="3">${y}</td>` : ""}<td>${label}</td>${cells}</tr>`;
+              })
+              .join("")
+          )
+          .join("");
+        const totalsRow = `<tr class="grid-totals-row"><td colspan="2">Total</td>${GRID_POSITIONS.map((pos) => `<td>${g.positionTotals[pos]}</td>`).join("")}</tr>`;
+
+        const summaryRows = g.yearTotals
+          .map((yt) => `<tr><td>${yt.year} Total:</td><td>${yt.agent1}</td><td>${yt.agent2}</td><td>${yt.agent3}</td><td class="grid-totals-row">${yt.total}</td></tr>`)
+          .join("");
+
+        const gridHtml = `
+        <div class="agent-grid-section">
+          <div class="agent-grid-title">Recruit Total &mdash; ${agentNameOf(g.agent)} (${g.agent})</div>
+          <table class="agent-grid-table">
+            <thead><tr><th colspan="2">Class Year / Slot</th>${posHeaderCells}</tr></thead>
+            <tbody>${yearRows}${totalsRow}</tbody>
+          </table>
+          <table class="agent-grid-summary">
+            <thead><tr><th>Class Year</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Total</th></tr></thead>
+            <tbody>${summaryRows}</tbody>
+          </table>
+        </div>`;
+        bodyContent = gridHtml + bodyContent;
+      }
     }
 
     const html = `<!doctype html>
@@ -620,6 +697,15 @@ export default function DraftBoard({ session }) {
     padding: 10px 24px 0;
     margin-top: 24px;
   }
+  .agent-grid-section { margin-bottom: 20px; page-break-inside: avoid; }
+  .agent-grid-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .agent-grid-table, .agent-grid-summary { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 10px; table-layout: fixed; }
+  .agent-grid-table th, .agent-grid-table td, .agent-grid-summary th, .agent-grid-summary td {
+    border: 1px solid #ccc; padding: 3px 4px; text-align: center;
+  }
+  .agent-grid-table th, .agent-grid-summary th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; font-size: 7.5px; }
+  .agent-grid-table td:nth-child(2), .agent-grid-summary td:first-child { text-align: left; font-weight: 600; }
+  .grid-totals-row td { background: #eee; font-weight: 800; }
 ${extraStyles}
 </style>
 </head>
@@ -1716,6 +1802,20 @@ ${extraStyles}
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
+
+              {reportType === "list" && (
+                <label style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "12px", cursor: "pointer", fontSize: "12px", color: COLORS.inkDim }}>
+                  <input
+                    type="checkbox"
+                    checked={reportShowAgentGrid}
+                    onChange={(e) => setReportShowAgentGrid(e.target.checked)}
+                  />
+                  Add Recruit Total Grid
+                  {reportShowAgentGrid && !reportFilters.agent && (
+                    <span style={{ color: "#C24E4E", fontSize: "11px" }}>(select an Agent above to enable)</span>
+                  )}
+                </label>
+              )}
 
               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
               <select
