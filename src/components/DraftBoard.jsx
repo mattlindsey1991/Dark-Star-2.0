@@ -225,41 +225,69 @@ export default function DraftBoard({ session }) {
   const isBasketball = sport === "BASKETBALL";
 
   const fetchAll = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("prospects")
-      .select("*, grades(*)")
-      .order("created_at", { ascending: true });
-    if (error) {
-      setErrorMsg("Couldn't load the board. Try refreshing.");
-    } else {
-      setProspects(data);
-      setErrorMsg("");
+    const pageSize = 1000;
+    let allRows = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("prospects")
+        .select("*, grades(*)")
+        .order("created_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        setErrorMsg("Couldn't load the board. Try refreshing.");
+        setLoaded(true);
+        return;
+      }
+      allRows = allRows.concat(data);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
     }
+    setProspects(allRows);
+    setErrorMsg("");
     setLoaded(true);
   }, []);
 
   const fetchVets = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("vets")
-      .select("*")
-      .order("created_at", { ascending: true });
-    if (error) {
-      setErrorMsg("Couldn't load the vet board. Try refreshing.");
-    } else {
-      setVets(data);
+    const pageSize = 1000;
+    let allRows = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("vets")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        setErrorMsg("Couldn't load the vet board. Try refreshing.");
+        return;
+      }
+      allRows = allRows.concat(data);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
     }
+    setVets(allRows);
   }, []);
 
   const fetchBB = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("bb_prospects")
-      .select("*, bb_grades(*)")
-      .order("created_at", { ascending: true });
-    if (error) {
-      setErrorMsg("Couldn't load the basketball board. Try refreshing.");
-    } else {
-      setBbProspects(data);
+    const pageSize = 1000;
+    let allRows = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("bb_prospects")
+        .select("*, bb_grades(*)")
+        .order("created_at", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        setErrorMsg("Couldn't load the basketball board. Try refreshing.");
+        return;
+      }
+      allRows = allRows.concat(data);
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
     }
+    setBbProspects(allRows);
   }, []);
 
   useEffect(() => {
