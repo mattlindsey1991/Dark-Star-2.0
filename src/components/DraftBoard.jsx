@@ -154,9 +154,30 @@ function gradeTier(avg) {
   return { label: "Not draftable", color: COLORS.tierBlack, text: COLORS.tierBlackText, filled: true };
 }
 
+// Official A1 Draft Board Grade / Projection scale (2026 Recruiting Guide).
+// Purely descriptive text based on the exact grade value; does not affect dot color,
+// which continues to come from gradeTier's Green/Yellow/Red bands above.
+// Since averages can land between the scale's named values, gaps between adjacent
+// tiers are split at their midpoint so an average snaps to whichever tier's grade
+// it's numerically closest to.
+function gradeDefinition(avg) {
+  if (avg === null) return "Ungraded";
+  if (avg <= 1.35) return "Elite Starter — prototype H/W/S with production";
+  if (avg <= 1.9) return "Impact Starter — high level traits";
+  if (avg <= 2.35) return "Solid Starter — consistently good player";
+  if (avg <= 3.55) return "Potential Starter — traits to become a starter by year 2 or 3";
+  if (avg <= 5.05) return "High End Back-Up / Role Starter — has limitations";
+  if (avg <= 6.55) return "Back-Up Only / Fringe Active Roster Player";
+  if (avg <= 7.55) return "Practice Squad Player";
+  if (avg <= 8.25) return "Camp Body";
+  if (avg <= 8.75) return "Reject";
+  return "No Grade (lack of information)";
+}
+
 function fmtGrade(avg) {
   return avg === null ? "—" : avg.toFixed(1);
 }
+
 
 function projectedValueNum(v) {
   if (!v) return -1;
@@ -2132,7 +2153,7 @@ ${extraStyles}
                               </span>
                             )}
                             <div
-                              title={tier.label}
+                              title={gradeDefinition(avg)}
                               style={{
                                 fontFamily: "'IBM Plex Mono', monospace",
                                 fontSize: "12px",
@@ -2159,7 +2180,7 @@ ${extraStyles}
                               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
                                 <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: tier.color, border: tier.filled ? "1px solid rgba(255,255,255,0.15)" : "none", flexShrink: 0 }} />
                                 <span style={{ fontSize: "10.5px", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace" }}>
-                                  {tier.label.toUpperCase()}
+                                  {gradeDefinition(avg).toUpperCase()}
                                 </span>
                               </div>
 
