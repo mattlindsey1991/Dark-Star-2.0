@@ -197,6 +197,7 @@ export default function DraftBoard({ session }) {
   const [board, setBoard] = useState("OFFENSE");
   const [year, setYear] = useState(2027);
   const [search, setSearch] = useState("");
+  const [a1Only, setA1Only] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [addOpenFor, setAddOpenFor] = useState(null);
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
@@ -315,6 +316,7 @@ export default function DraftBoard({ session }) {
     positions.forEach((p) => (map[p.abbr] = []));
     prospects
       .filter((pr) => pr.draft_class_year === year && map[pr.position] !== undefined)
+      .filter((pr) => !a1Only || pr.is_a1)
       .filter(
         (pr) =>
           !q ||
@@ -333,7 +335,7 @@ export default function DraftBoard({ session }) {
       });
     });
     return map;
-  }, [prospects, positions, year, search]);
+  }, [prospects, positions, year, search, a1Only]);
 
   const groupedVets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -341,6 +343,7 @@ export default function DraftBoard({ session }) {
     positions.forEach((p) => (map[p.abbr] = []));
     vets
       .filter((v) => map[v.position] !== undefined)
+      .filter((v) => !a1Only || v.is_a1)
       .filter(
         (v) =>
           !q ||
@@ -352,7 +355,7 @@ export default function DraftBoard({ session }) {
       map[k].sort((a, b) => projectedValueNum(b.projected_value) - projectedValueNum(a.projected_value));
     });
     return map;
-  }, [vets, positions, search]);
+  }, [vets, positions, search, a1Only]);
 
   const bbGrouped = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -360,6 +363,7 @@ export default function DraftBoard({ session }) {
     BB_POSITIONS.forEach((p) => (map[p.abbr] = []));
     bbProspects
       .filter((bp) => bp.class_year === bbYear && map[bp.position] !== undefined)
+      .filter((bp) => !a1Only || bp.is_a1)
       .filter(
         (bp) =>
           !q ||
@@ -371,7 +375,7 @@ export default function DraftBoard({ session }) {
       map[k].sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority));
     });
     return map;
-  }, [bbProspects, bbYear, search]);
+  }, [bbProspects, bbYear, search, a1Only]);
 
   const totalCount = useMemo(() => {
     const src = isBasketball ? bbGrouped : (isVetView ? groupedVets : grouped);
@@ -1656,12 +1660,35 @@ ${extraStyles}
             )}
           </div>
 
+          <label
+            className="no-print"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontFamily: "'IBM Plex Mono', monospace",
+              fontSize: "12px",
+              fontWeight: 700,
+              color: a1Only ? "#E24C4C" : COLORS.inkDim,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              marginLeft: "auto",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={a1Only}
+              onChange={(e) => setA1Only(e.target.checked)}
+            />
+            A1 Clients Only
+          </label>
+
           <input
             className="db-input no-print"
             placeholder={isVetView ? "Search name or hometown" : "Search name or school"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ width: "180px", marginLeft: "auto" }}
+            style={{ width: "180px" }}
           />
 
           {isBasketball ? (
