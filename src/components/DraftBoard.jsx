@@ -321,7 +321,8 @@ export default function DraftBoard({ session }) {
         (pr) =>
           !q ||
           pr.name.toLowerCase().includes(q) ||
-          (pr.school || "").toLowerCase().includes(q)
+          (pr.school || "").toLowerCase().includes(q) ||
+          (pr.other_agency || "").toLowerCase().includes(q)
       )
       .forEach((pr) => map[pr.position].push(pr));
     Object.keys(map).forEach((k) => {
@@ -1685,7 +1686,7 @@ ${extraStyles}
 
           <input
             className="db-input no-print"
-            placeholder={isVetView ? "Search name or hometown" : "Search name or school"}
+            placeholder={isVetView ? "Search name or hometown" : isBasketball ? "Search name or school" : "Search name, school, or agency"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: "180px" }}
