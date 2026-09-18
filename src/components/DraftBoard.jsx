@@ -596,7 +596,12 @@ export default function DraftBoard({ session }) {
   .player-name { font-size: 16px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; }
   .player-meta { font-size: 11.5px; color: #ccc; font-weight: 600; margin-left: 10px; }
   .avg-badge { font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 4px; letter-spacing: 0.3px; }
-  .grades-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .player-body { display: flex; }
+  .player-info { flex: 0 0 230px; font-size: 11.5px; border-right: 1px solid #ccc; }
+  .player-info div { padding: 6px 12px; border-bottom: 1px solid #eee; font-weight: 600; }
+  .player-info div:last-child { border-bottom: none; }
+  .other-agency { color: #C0392B; font-weight: 800; }
+  .grades-table { flex: 1; width: auto; border-collapse: collapse; font-size: 11.5px; }
   .grades-table th, .grades-table td { border: 1px solid #ddd; padding: 6px 9px; text-align: left; }
   .grades-table th { background: #eee; color: #333; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 9.5px; }
   .grades-table td.grade-cell { font-weight: 800; text-align: center; }
@@ -624,11 +629,21 @@ export default function DraftBoard({ session }) {
                 AVG ${fmtGrade(p.avgGrade)}
               </div>
             </div>
-            <table class="grades-table">
-              <colgroup><col style="width:20%" /><col style="width:32%" /><col style="width:20%" /><col style="width:28%" /></colgroup>
-              <thead><tr><th>Team</th><th>Scout</th><th>Date</th><th>Grade</th></tr></thead>
-              <tbody>${gradesHtml}</tbody>
-            </table>
+            <div class="player-body">
+              <div class="player-info">
+                <div>Rec. Status: ${p.recruiting_status || "—"}</div>
+                <div>Ent: ${p.entry_year || "—"}</div>
+                <div>Agent 1: ${p.agent_1 || "—"}</div>
+                <div>Agent 2: ${p.agent_2 || "—"}</div>
+                <div>Agent 3: ${p.agent_3 || "—"}</div>
+                <div>Other Agency: ${p.other_agency ? `<span class="other-agency">${p.other_agency}</span>` : "—"}</div>
+              </div>
+              <table class="grades-table">
+                <colgroup><col style="width:25%" /><col style="width:30%" /><col style="width:20%" /><col style="width:25%" /></colgroup>
+                <thead><tr><th>Team</th><th>Scout</th><th>Date</th><th>Grade</th></tr></thead>
+                <tbody>${gradesHtml}</tbody>
+              </table>
+            </div>
           </div>`;
         })
         .join("");
