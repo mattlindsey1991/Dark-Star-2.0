@@ -2168,6 +2168,20 @@ ${extraStyles}
                                 A1
                               </span>
                             )}
+                            {p.college_tier && (
+                              <span
+                                title={p.college_tier}
+                                style={{
+                                  fontFamily: "'IBM Plex Mono', monospace",
+                                  fontSize: "15px",
+                                  fontWeight: 800,
+                                  color: "#3E9D5E",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {"$".repeat((p.college_tier.match(/\$/g) || []).length)}
+                              </span>
+                            )}
                             <div
                               title={gradeDefinition(avg)}
                               style={{
