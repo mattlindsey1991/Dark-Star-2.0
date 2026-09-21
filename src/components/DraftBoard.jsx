@@ -146,6 +146,13 @@ function computeAvg(grades) {
   return sum / grades.length;
 }
 
+function tierDollarColor(tier) {
+  if (tier === "High $$$") return "#1B5E33";
+  if (tier === "Mid $$") return "#3E9D5E";
+  if (tier === "Low $") return "#8FD9A8";
+  return "#3E9D5E";
+}
+
 function gradeTier(avg) {
   // Lower grade is better on this scale: 1.0 is elite, 9.0 is not draftable.
   if (avg === null) return { label: "Ungraded", color: COLORS.ungraded, text: COLORS.ink, filled: false };
@@ -2186,7 +2193,7 @@ ${extraStyles}
                                   fontFamily: "'IBM Plex Mono', monospace",
                                   fontSize: "15px",
                                   fontWeight: 800,
-                                  color: "#3E9D5E",
+                                  color: tierDollarColor(p.college_tier),
                                   flexShrink: 0,
                                 }}
                               >
