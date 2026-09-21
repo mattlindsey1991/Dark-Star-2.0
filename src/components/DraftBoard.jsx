@@ -146,13 +146,6 @@ function computeAvg(grades) {
   return sum / grades.length;
 }
 
-function tierDollarColor(tier) {
-  if (tier === "High $$$") return "#1B5E33";
-  if (tier === "Mid $$") return "#3E9D5E";
-  if (tier === "Low $") return "#8FD9A8";
-  return "#3E9D5E";
-}
-
 function gradeTier(avg) {
   // Lower grade is better on this scale: 1.0 is elite, 9.0 is not draftable.
   if (avg === null) return { label: "Ungraded", color: COLORS.ungraded, text: COLORS.ink, filled: false };
@@ -661,6 +654,12 @@ export default function DraftBoard({ session }) {
         .map((p) => {
           const avg = computeAvg(p.grades);
           const tier = gradeTier(avg);
+          const assignedDisplay = p.date_assigned
+            ? (() => {
+                const d = new Date(p.date_assigned + "T00:00:00");
+                return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
+              })()
+            : "";
           return `<tr>
             <td style="font-weight:800;">${p.name}</td>
             <td>${p.position}</td>
@@ -673,6 +672,8 @@ export default function DraftBoard({ session }) {
             <td>${agentNameOf(p.agent_2)}</td>
             <td>${agentNameOf(p.agent_3)}</td>
             <td>${p.other_agency || ""}</td>
+            <td style="color:${tierDollarColor(p.college_tier)};font-weight:800;text-align:center;">${p.college_tier ? "$".repeat((p.college_tier.match(/\$/g) || []).length) : ""}</td>
+            <td style="text-align:center;">${assignedDisplay}</td>
           </tr>`;
         })
         .join("");
@@ -681,9 +682,10 @@ export default function DraftBoard({ session }) {
           <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
           <col class="col-grade" /><col class="col-status" />
           <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
+          <col class="col-tier" /><col class="col-assigned" />
         </colgroup>
         <thead>
-          <tr><th>Name</th><th>Pos.</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>NFL Grade</th><th>Recruiting Status</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>
+          <tr><th>Name</th><th>Pos.</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>NFL Grade</th><th>Recruiting Status</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th><th>Tier</th><th>Assigned</th></tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>`;
@@ -751,20 +753,22 @@ export default function DraftBoard({ session }) {
   h1 { font-size: 22px; letter-spacing: 0.5px; margin: 4px 0 2px; text-transform: uppercase; }
   .subtitle { font-size: 11.5px; color: #555; margin-bottom: 2px; }
   .filters { font-size: 11.5px; color: #333; margin-bottom: 18px; font-weight: 700; }
-  table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; }
-  th, td { border: 1px solid #ccc; padding: 4px 5px; text-align: left; overflow-wrap: break-word; vertical-align: top; }
-  th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 8px; table-layout: fixed; }
+  th, td { border: 1px solid #ccc; padding: 3px 4px; text-align: left; overflow-wrap: break-word; vertical-align: top; }
+  th { background: #111; color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 7px; }
   tbody tr:nth-child(even) td { background: #f4f4f4; }
-  colgroup col.col-name { width: 14%; }
-  colgroup col.col-pos { width: 6%; }
-  colgroup col.col-school { width: 12%; }
-  colgroup col.col-entry { width: 7%; }
-  colgroup col.col-class { width: 7%; }
-  colgroup col.col-grade { width: 8%; }
-  colgroup col.col-status { width: 14%; }
-  td.status-cell { white-space: nowrap; overflow: hidden; font-size: 6.5px; }
-  colgroup col.col-agent { width: 8%; }
-  colgroup col.col-other { width: 8%; }
+  colgroup col.col-name { width: 15%; }
+  colgroup col.col-pos { width: 5%; }
+  colgroup col.col-school { width: 10%; }
+  colgroup col.col-entry { width: 6%; }
+  colgroup col.col-class { width: 6%; }
+  colgroup col.col-grade { width: 7%; }
+  colgroup col.col-status { width: 12%; }
+  td.status-cell { white-space: nowrap; overflow: hidden; font-size: 6px; }
+  colgroup col.col-agent { width: 6%; }
+  colgroup col.col-other { width: 7%; }
+  colgroup col.col-tier { width: 6%; }
+  colgroup col.col-assigned { width: 8%; }
   .footer {
     display: flex;
     justify-content: space-between;
@@ -2182,7 +2186,7 @@ ${extraStyles}
                                   fontFamily: "'IBM Plex Mono', monospace",
                                   fontSize: "15px",
                                   fontWeight: 800,
-                                  color: tierDollarColor(p.college_tier),
+                                  color: "#3E9D5E",
                                   flexShrink: 0,
                                 }}
                               >
