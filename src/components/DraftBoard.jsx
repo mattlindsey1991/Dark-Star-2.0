@@ -4123,7 +4123,7 @@ ${extraStyles}
                                 <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "6px" }}>
                                   Grades ({p.grades.length}) — add/edit in Board View
                                 </label>
-                                {p.grades.map((g) => (
+                                {[...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)).map((g) => (
                                   <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: COLORS.inkDim, marginBottom: "3px" }}>
                                     <span style={{ flex: 1 }}>{g.team || "—"} · {g.scout_name || g.scout} · {g.month}/{g.year}</span>
                                     <span style={{ fontWeight: 700, color: COLORS.ink }}>{g.grade}</span>
