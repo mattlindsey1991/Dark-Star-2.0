@@ -597,9 +597,9 @@ export default function DraftBoard({ session }) {
     });
     return {
       position: ALL_POSITIONS.map((p) => p.abbr),
-      school: Array.from(schools).sort(),
+      school: Array.from(schools).sort((a, b) => schoolNameOf(a).localeCompare(schoolNameOf(b))),
       status: RECRUITING_STATUS_OPTIONS.filter((s) => statuses.has(s)),
-      agent: AGENT_INITIALS,
+      agent: [...AGENT_INITIALS].sort((a, b) => agentNameOf(a).localeCompare(agentNameOf(b))),
       tier: COLLEGE_TIER_OPTIONS,
       draftYear: Array.from(draftYears).sort((a, b) => a - b),
     };
