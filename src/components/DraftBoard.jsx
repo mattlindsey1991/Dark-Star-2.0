@@ -115,7 +115,7 @@ function normalizeProjectedValue(raw) {
   return PROJECTED_VALUES.includes(candidate) ? candidate : null;
 }
 
-const COLORS = {
+const DARK_COLORS = {
   bg: "#15171A",
   surface: "#1D2024",
   surfaceHi: "#242830",
@@ -123,11 +123,44 @@ const COLORS = {
   inkDim: "#9C9C93",
   hair: "rgba(236,231,220,0.10)",
   hairStrong: "rgba(236,231,220,0.18)",
+  inkTint03: "rgba(236,231,220,0.03)",
+  inkTint04: "rgba(236,231,220,0.04)",
+  inkTint05: "rgba(236,231,220,0.05)",
+  inkTint06: "rgba(236,231,220,0.06)",
   offense: "#C98A3E",
   offenseDim: "rgba(201,138,62,0.14)",
   defense: "#3E7B94",
   defenseDim: "rgba(62,123,148,0.14)",
   ungraded: "#54585F",
+  tierGreen: "#4C9A5B",
+  tierGreenText: "#EAF6EC",
+  tierYellow: "#D9B23C",
+  tierYellowText: "#2B2000",
+  tierRed: "#C24E4E",
+  tierRedText: "#FCEDED",
+  tierBlack: "#0D0E10",
+  tierBlackText: "#ECE7DC",
+  vetGreen: "#2E7D4F",
+  vetGreenText: "#EAF6EC",
+};
+
+const LIGHT_COLORS = {
+  bg: "#F6F4EF",
+  surface: "#FFFFFF",
+  surfaceHi: "#EDEAE1",
+  ink: "#201F1C",
+  inkDim: "#6E6C64",
+  hair: "rgba(32,31,28,0.12)",
+  hairStrong: "rgba(32,31,28,0.22)",
+  inkTint03: "rgba(32,31,28,0.03)",
+  inkTint04: "rgba(32,31,28,0.05)",
+  inkTint05: "rgba(32,31,28,0.06)",
+  inkTint06: "rgba(32,31,28,0.07)",
+  offense: "#A56A24",
+  offenseDim: "rgba(165,106,36,0.12)",
+  defense: "#2E6479",
+  defenseDim: "rgba(46,100,121,0.12)",
+  ungraded: "#8A8E96",
   tierGreen: "#4C9A5B",
   tierGreenText: "#EAF6EC",
   tierYellow: "#D9B23C",
@@ -153,13 +186,13 @@ function tierDollarColor(tier) {
   return "#3E9D5E";
 }
 
-function gradeTier(avg) {
+function gradeTier(avg, colorsObj = DARK_COLORS) {
   // Lower grade is better on this scale: 1.0 is elite, 9.0 is not draftable.
-  if (avg === null) return { label: "Ungraded", color: COLORS.ungraded, text: COLORS.ink, filled: false };
-  if (avg < 3.5) return { label: "Elite", color: COLORS.tierGreen, text: COLORS.tierGreenText, filled: true };
-  if (avg < 5.5) return { label: "Depth / backup", color: COLORS.tierYellow, text: COLORS.tierYellowText, filled: true };
-  if (avg < 9.0) return { label: "Priority FA", color: COLORS.tierRed, text: COLORS.tierRedText, filled: true };
-  return { label: "Not draftable", color: COLORS.tierBlack, text: COLORS.tierBlackText, filled: true };
+  if (avg === null) return { label: "Ungraded", color: colorsObj.ungraded, text: colorsObj.ink, filled: false };
+  if (avg < 3.5) return { label: "Elite", color: colorsObj.tierGreen, text: colorsObj.tierGreenText, filled: true };
+  if (avg < 5.5) return { label: "Depth / backup", color: colorsObj.tierYellow, text: colorsObj.tierYellowText, filled: true };
+  if (avg < 9.0) return { label: "Priority FA", color: colorsObj.tierRed, text: colorsObj.tierRedText, filled: true };
+  return { label: "Not draftable", color: colorsObj.tierBlack, text: colorsObj.tierBlackText, filled: true };
 }
 
 // Official A1 Draft Board Grade / Projection scale (2026 Recruiting Guide).
@@ -216,7 +249,7 @@ function calcAge(dob) {
   return years.toFixed(1);
 }
 
-function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen, onToggleOpen, formatOption }) {
+function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen, onToggleOpen, formatOption, colors = DARK_COLORS }) {
   const count = selected.size;
   return (
     <div style={{ position: "relative" }} className="no-print">
@@ -228,8 +261,8 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
           fontSize: "11.5px",
           padding: "6px 10px",
           fontWeight: count > 0 ? 700 : 400,
-          borderColor: count > 0 ? COLORS.offense : COLORS.hair,
-          color: count > 0 ? COLORS.offense : COLORS.inkDim,
+          borderColor: count > 0 ? colors.offense : colors.hair,
+          color: count > 0 ? colors.offense : colors.inkDim,
           whiteSpace: "nowrap",
         }}
       >
@@ -242,8 +275,8 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
             top: "calc(100% + 4px)",
             left: 0,
             zIndex: 50,
-            background: COLORS.surface,
-            border: `1px solid ${COLORS.hair}`,
+            background: colors.surface,
+            border: `1px solid ${colors.hair}`,
             borderRadius: "6px",
             boxShadow: "0 6px 20px rgba(0,0,0,0.35)",
             minWidth: "180px",
@@ -282,7 +315,7 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
                 padding: "4px 6px",
                 fontSize: "11.5px",
                 fontFamily: "'IBM Plex Mono', monospace",
-                color: COLORS.ink,
+                color: colors.ink,
                 cursor: "pointer",
                 borderRadius: "4px",
               }}
@@ -299,7 +332,7 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
             </label>
           ))}
           {options.length === 0 && (
-            <div style={{ fontSize: "11px", color: COLORS.inkDim, padding: "4px 6px" }}>No options</div>
+            <div style={{ fontSize: "11px", color: colors.inkDim, padding: "4px 6px" }}>No options</div>
           )}
         </div>
       )}
@@ -323,6 +356,14 @@ export default function DraftBoard({ session }) {
       return "list";
     }
   });
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("bigboard_theme") || "dark";
+    } catch {
+      return "dark";
+    }
+  });
+  const COLORS = theme === "light" ? LIGHT_COLORS : DARK_COLORS;
   const [search, setSearch] = useState("");
   const [a1Only, setA1Only] = useState(false);
   const [listFilters, setListFilters] = useState({
@@ -370,6 +411,12 @@ export default function DraftBoard({ session }) {
       localStorage.setItem("bigboard_view_mode", viewMode);
     } catch {}
   }, [viewMode]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bigboard_theme", theme);
+    } catch {}
+  }, [theme]);
 
   // List View only supports football prospects (agents/tier/etc. are prospect-specific fields)
   useEffect(() => {
@@ -515,7 +562,7 @@ export default function DraftBoard({ session }) {
           (pr.school || "").toLowerCase().includes(q) ||
           (pr.other_agency || "").toLowerCase().includes(q)
       )
-      .map((pr) => ({ ...pr, __avg: computeAvg(pr.grades), __tier: gradeTier(computeAvg(pr.grades)) }));
+      .map((pr) => ({ ...pr, __avg: computeAvg(pr.grades), __tier: gradeTier(computeAvg(pr.grades), COLORS) }));
 
     const { key, dir } = listSort;
     const mul = dir === "asc" ? 1 : -1;
@@ -717,7 +764,7 @@ export default function DraftBoard({ session }) {
           ...p,
           sortedGrades: [...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)),
           avgGrade,
-          avgTier: gradeTier(avgGrade),
+          avgTier: gradeTier(avgGrade, COLORS),
         };
       });
   }, [reportRows]);
@@ -875,7 +922,7 @@ export default function DraftBoard({ session }) {
         .map((p) => {
           const gradesHtml = p.sortedGrades
             .map((g) => {
-              const t = gradeTier(Number(g.grade));
+              const t = gradeTier(Number(g.grade), COLORS);
               return `<tr>
                 <td>${g.team || ""}</td>
                 <td>${g.scout_name || g.scout || ""}</td>
@@ -917,7 +964,7 @@ export default function DraftBoard({ session }) {
       const rowsHtml = reportRows
         .map((p) => {
           const avg = computeAvg(p.grades);
-          const tier = gradeTier(avg);
+          const tier = gradeTier(avg, COLORS);
           const assignedDisplay = p.date_assigned
             ? (() => {
                 const d = new Date(p.date_assigned + "T00:00:00");
@@ -1768,9 +1815,9 @@ ${extraStyles}
       }}
     >
       <style>{`
-        .db-row:hover { background: rgba(236,231,220,0.04) !important; }
+        .db-row:hover { background: ${COLORS.inkTint04} !important; }
         .db-input {
-          background: rgba(236,231,220,0.06);
+          background: ${COLORS.inkTint06};
           border: 1px solid ${COLORS.hair};
           color: ${COLORS.ink};
           border-radius: 4px;
@@ -1839,6 +1886,14 @@ ${extraStyles}
             </span>
           </div>
           <div className="no-print" style={{ display: "flex", gap: "8px" }}>
+            <button
+              className="db-btn"
+              onClick={() => setTheme((t) => (t === "light" ? "dark" : "light"))}
+              title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+              style={{ padding: "7px 12px", fontSize: "12px" }}
+            >
+              {theme === "light" ? "\u263E Dark" : "\u2600 Light"}
+            </button>
             <button className="db-btn" onClick={() => setPwOpen((v) => !v)} style={{ padding: "7px 12px", fontSize: "12px" }}>
               {pwOpen ? "Close" : "Set password"}
             </button>
@@ -2168,6 +2223,7 @@ ${extraStyles}
                 isOpen={openFilterKey === f.key}
                 onToggleOpen={() => setOpenFilterKey(openFilterKey === f.key ? null : f.key)}
                 formatOption={f.format}
+                colors={COLORS}
               />
             ))}
             {Object.values(listFilters).some((s) => s.size > 0) && (
@@ -2601,7 +2657,7 @@ ${extraStyles}
 
                     {!isBasketball && !isVetView && list.map((p, idx) => {
                       const avg = computeAvg(p.grades);
-                      const tier = gradeTier(avg);
+                      const tier = gradeTier(avg, COLORS);
                       const isOpen = expandedId === p.id;
                       return (
                         <div key={p.id} style={{ borderBottom: `1px solid ${COLORS.hair}` }}>
@@ -2821,7 +2877,7 @@ ${extraStyles}
                               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School Name</label>
                               <div
                                 className="db-input"
-                                style={{ width: "100%", marginBottom: "8px", background: "rgba(236,231,220,0.03)", color: COLORS.inkDim, cursor: "default" }}
+                                style={{ width: "100%", marginBottom: "8px", background: COLORS.inkTint03, color: COLORS.inkDim, cursor: "default" }}
                               >
                                 {(p.school && SCHOOL_CODE_TO_NAME[p.school]) || "—"}
                               </div>
@@ -2898,7 +2954,7 @@ ${extraStyles}
                               </div>
                               {[...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)).map((g) =>
                                 editingGradeId === g.id ? (
-                                  <div key={g.id} style={{ marginBottom: "6px", padding: "6px", background: "rgba(236,231,220,0.05)", borderRadius: "4px" }} onClick={(e) => e.stopPropagation()}>
+                                  <div key={g.id} style={{ marginBottom: "6px", padding: "6px", background: COLORS.inkTint05, borderRadius: "4px" }} onClick={(e) => e.stopPropagation()}>
                                     <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
                                       <select
                                         className="db-input"
@@ -3930,7 +3986,7 @@ ${extraStyles}
                                 <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School Name</label>
                                 <div
                                   className="db-input"
-                                  style={{ width: "100%", marginBottom: "8px", background: "rgba(236,231,220,0.03)", color: COLORS.inkDim, cursor: "default" }}
+                                  style={{ width: "100%", marginBottom: "8px", background: COLORS.inkTint03, color: COLORS.inkDim, cursor: "default" }}
                                 >
                                   {(p.school && SCHOOL_CODE_TO_NAME[p.school]) || "—"}
                                 </div>
