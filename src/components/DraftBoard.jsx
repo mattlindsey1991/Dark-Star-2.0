@@ -339,6 +339,8 @@ export default function DraftBoard({ session }) {
   const [expandedId, setExpandedId] = useState(null);
   const [addOpenFor, setAddOpenFor] = useState(null);
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
+  const [listAddOpen, setListAddOpen] = useState(false);
+  const [listAddDraft, setListAddDraft] = useState({ name: "", position: "QB", school: "", entryYear: 2024, draftYear: 2027 });
   const [bbAddDraft, setBbAddDraft] = useState({ name: "", team: "" });
   const [vetDraft, setVetDraft] = useState({ name: "", hometown: "", draftYear: 2024 });
   const [gradeDraft, setGradeDraft] = useState({ team: "", scout: "", month: "", year: "", grade: GRADE_SCALE[0] });
@@ -1112,6 +1114,32 @@ ${extraStyles}
     setProspects((prev) => [...prev, { ...data, grades: [] }]);
     setAddOpenFor(null);
     setExpandedId(data.id);
+  }
+
+  async function submitListAdd() {
+    if (!listAddDraft.name.trim()) return;
+    const { data, error } = await supabase
+      .from("prospects")
+      .insert({
+        name: listAddDraft.name.trim(),
+        position: listAddDraft.position,
+        board: POSITION_BOARD[listAddDraft.position],
+        school: listAddDraft.school.trim() || null,
+        draft_class_year: Number(listAddDraft.draftYear),
+        entry_year: Number(listAddDraft.entryYear),
+        agents: "",
+        created_by: session.user.id,
+      })
+      .select()
+      .single();
+    if (error) {
+      setErrorMsg("Couldn't add that prospect. Try again.");
+      return;
+    }
+    setProspects((prev) => [...prev, { ...data, grades: [] }]);
+    setListAddOpen(false);
+    setListAddDraft({ name: "", position: "QB", school: "", entryYear: 2024, draftYear: 2027 });
+    setListExpandedId(data.id);
   }
 
   async function submitAddVet(posAbbr) {
@@ -2158,6 +2186,125 @@ ${extraStyles}
                 Clear all filters
               </button>
             )}
+            <button
+              onClick={() => setListAddOpen((v) => !v)}
+              className="db-btn"
+              style={{
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "11.5px",
+                padding: "6px 10px",
+                marginLeft: "auto",
+                fontWeight: 700,
+                borderColor: accent,
+                color: accent,
+                whiteSpace: "nowrap",
+              }}
+            >
+              + Add Prospect
+            </button>
+          </div>
+        )}
+
+        {viewMode === "list" && !isBasketball && !isVetView && listAddOpen && (
+          <div
+            className="no-print"
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginBottom: "16px",
+              padding: "12px 14px",
+              background: COLORS.surface,
+              border: `1px solid ${COLORS.hair}`,
+              borderRadius: "8px",
+            }}
+          >
+            <div>
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Name</label>
+              <input
+                className="db-input"
+                style={{ width: "180px" }}
+                value={listAddDraft.name}
+                onChange={(e) => setListAddDraft({ ...listAddDraft, name: e.target.value })}
+                placeholder="Player name"
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
+              <select
+                className="db-input"
+                style={{ width: "90px" }}
+                value={listAddDraft.position}
+                onChange={(e) => setListAddDraft({ ...listAddDraft, position: e.target.value })}
+              >
+                <optgroup label="Offense">
+                  {OFFENSE_POSITIONS.map((op) => (
+                    <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Defense">
+                  {DEFENSE_POSITIONS.map((dp) => (
+                    <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School Code</label>
+              <select
+                className="db-input"
+                style={{ width: "130px" }}
+                value={listAddDraft.school}
+                onChange={(e) => setListAddDraft({ ...listAddDraft, school: e.target.value })}
+              >
+                <option value="">—</option>
+                {SCHOOL_CODES_VISIBLE.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Entry Year</label>
+              <select
+                className="db-input"
+                style={{ width: "110px" }}
+                value={listAddDraft.entryYear}
+                onChange={(e) => setListAddDraft({ ...listAddDraft, entryYear: Number(e.target.value) })}
+              >
+                {ENTRY_YEARS.map((ey) => (
+                  <option key={ey} value={ey}>Ent: {ey}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft Class</label>
+              <select
+                className="db-input"
+                style={{ width: "100px" }}
+                value={listAddDraft.draftYear}
+                onChange={(e) => setListAddDraft({ ...listAddDraft, draftYear: Number(e.target.value) })}
+              >
+                {YEARS.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              className="db-btn"
+              onClick={submitListAdd}
+              disabled={!listAddDraft.name.trim()}
+              style={{ padding: "7px 14px", fontSize: "12px", fontWeight: 700, borderColor: accent, color: accent }}
+            >
+              Add
+            </button>
+            <button
+              className="db-btn"
+              onClick={() => setListAddOpen(false)}
+              style={{ padding: "7px 12px", fontSize: "12px" }}
+            >
+              Cancel
+            </button>
           </div>
         )}
 
