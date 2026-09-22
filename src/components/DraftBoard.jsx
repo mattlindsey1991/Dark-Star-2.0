@@ -569,6 +569,10 @@ export default function DraftBoard({ session }) {
           av = a.agent_3 || "";
           bv = b.agent_3 || "";
           break;
+        case "other_agency":
+          av = a.other_agency || "";
+          bv = b.other_agency || "";
+          break;
         default:
           av = 0;
           bv = 0;
@@ -3636,17 +3640,19 @@ ${extraStyles}
                     { key: "agent_1", label: "AGENT 1" },
                     { key: "agent_2", label: "AGENT 2" },
                     { key: "agent_3", label: "AGENT 3" },
+                    { key: "other_agency", label: "OTHER AGENCY" },
                   ].map((col) => (
                     <th
                       key={col.key}
                       onClick={() => toggleListSort(col.key)}
                       style={{
                         textAlign: "left",
-                        padding: "8px 10px",
+                        padding: "9px 10px",
                         cursor: "pointer",
-                        color: listSort.key === col.key ? accent : COLORS.inkDim,
-                        fontWeight: 700,
-                        fontSize: "10.5px",
+                        color: listSort.key === col.key ? accent : COLORS.ink,
+                        fontWeight: 800,
+                        fontSize: "11px",
+                        letterSpacing: "0.3px",
                         whiteSpace: "nowrap",
                         userSelect: "none",
                       }}
@@ -3667,9 +3673,10 @@ ${extraStyles}
                           borderBottom: `1px solid ${COLORS.hair}`,
                           cursor: "pointer",
                           background: isOpen ? COLORS.surfaceHi : "transparent",
+                          fontSize: "12.5px",
                         }}
                       >
-                        <td style={{ padding: "7px 10px" }}>
+                        <td style={{ padding: "8px 10px" }}>
                           <span
                             style={{
                               display: "inline-flex",
@@ -3688,27 +3695,109 @@ ${extraStyles}
                             {fmtGrade(p.__avg)}
                           </span>
                         </td>
-                        <td style={{ padding: "7px 10px", color: tierDollarColor(p.college_tier), fontWeight: 800 }}>
+                        <td style={{ padding: "8px 10px", color: tierDollarColor(p.college_tier), fontWeight: 800 }}>
                           {p.college_tier ? "$".repeat((p.college_tier.match(/\$/g) || []).length) : "—"}
                         </td>
-                        <td style={{ padding: "7px 10px", fontWeight: 700, color: COLORS.ink }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 800, color: COLORS.ink }}>
                           {p.name}
                           {p.is_a1 && <span style={{ color: "#E24C4C", marginLeft: "6px", fontSize: "9.5px", fontWeight: 800 }}>A1</span>}
                         </td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.position}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{schoolNameOf(p.school)}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim, fontSize: "10.5px" }}>{p.recruiting_status || "—"}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.date_assigned || "—"}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.entry_year || "—"}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.draft_class_year}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.agent_1 || "—"}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.agent_2 || "—"}</td>
-                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.agent_3 || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.position}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{schoolNameOf(p.school)}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, fontSize: "11px" }}>{p.recruiting_status || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.date_assigned || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.entry_year || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.draft_class_year}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{agentNameOf(p.agent_1) || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{agentNameOf(p.agent_2) || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{agentNameOf(p.agent_3) || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: p.other_agency ? "#E88080" : COLORS.ink, fontWeight: p.other_agency ? 800 : 600 }}>{p.other_agency || "—"}</td>
                       </tr>
                       {isOpen && (
                         <tr className="no-print">
-                          <td colSpan={12} style={{ padding: 0, background: COLORS.surfaceHi, borderBottom: `1px solid ${COLORS.hair}` }}>
+                          <td colSpan={13} style={{ padding: 0, background: COLORS.surfaceHi, borderBottom: `1px solid ${COLORS.hair}` }}>
                             <div style={{ padding: "16px 20px", display: "flex", gap: "26px", flexWrap: "wrap" }}>
+                              <div style={{ minWidth: "220px" }}>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Name</label>
+                                <input
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px", fontWeight: 600 }}
+                                  defaultValue={p.name}
+                                  onBlur={(e) => {
+                                    const v = e.target.value.trim();
+                                    if (v) updateProspect(p.id, { name: v });
+                                    else e.target.value = p.name;
+                                  }}
+                                />
+                                <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Position</label>
+                                    <select
+                                      className="db-input"
+                                      style={{ width: "100%" }}
+                                      value={p.position}
+                                      onChange={(e) => {
+                                        const newPos = e.target.value;
+                                        updateProspect(p.id, { position: newPos, board: POSITION_BOARD[newPos] });
+                                      }}
+                                    >
+                                      <optgroup label="Offense">
+                                        {OFFENSE_POSITIONS.map((op) => (
+                                          <option key={op.abbr} value={op.abbr}>{op.abbr}</option>
+                                        ))}
+                                      </optgroup>
+                                      <optgroup label="Defense">
+                                        {DEFENSE_POSITIONS.map((dp) => (
+                                          <option key={dp.abbr} value={dp.abbr}>{dp.abbr}</option>
+                                        ))}
+                                      </optgroup>
+                                    </select>
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Draft class</label>
+                                    <select
+                                      className="db-input"
+                                      style={{ width: "100%" }}
+                                      value={p.draft_class_year}
+                                      onChange={(e) => updateProspect(p.id, { draft_class_year: Number(e.target.value) })}
+                                    >
+                                      {YEARS.map((y) => (
+                                        <option key={y} value={y}>{y}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School Code</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  value={p.school || ""}
+                                  onChange={(e) => updateProspect(p.id, { school: e.target.value || null })}
+                                >
+                                  <option value="">—</option>
+                                  {(p.school && !SCHOOL_CODES_VISIBLE.includes(p.school) ? [p.school, ...SCHOOL_CODES_VISIBLE] : SCHOOL_CODES_VISIBLE).map((code) => (
+                                    <option key={code} value={code}>{code}</option>
+                                  ))}
+                                </select>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>School Name</label>
+                                <div
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px", background: "rgba(236,231,220,0.03)", color: COLORS.inkDim, cursor: "default" }}
+                                >
+                                  {(p.school && SCHOOL_CODE_TO_NAME[p.school]) || "—"}
+                                </div>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>College entry year</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%" }}
+                                  value={p.entry_year || ""}
+                                  onChange={(e) => updateProspect(p.id, { entry_year: Number(e.target.value) })}
+                                >
+                                  {ENTRY_YEARS.map((ey) => (
+                                    <option key={ey} value={ey}>Ent: {ey}</option>
+                                  ))}
+                                </select>
+                              </div>
                               <div style={{ minWidth: "220px" }}>
                                 <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Recruiting Status</label>
                                 <select
@@ -3805,6 +3894,16 @@ ${extraStyles}
                                   placeholder="e.g. Rosenhaus, CAA, Excel"
                                   defaultValue={p.other_agency}
                                   onBlur={(e) => updateProspect(p.id, { other_agency: e.target.value || null })}
+                                />
+                              </div>
+                              <div style={{ minWidth: "220px" }}>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Meetings</label>
+                                <input
+                                  className="db-input"
+                                  style={{ width: "100%" }}
+                                  placeholder="e.g. Combine, 3/12"
+                                  defaultValue={p.meetings}
+                                  onBlur={(e) => updateProspect(p.id, { meetings: e.target.value })}
                                 />
                               </div>
                               <div style={{ minWidth: "260px", flex: 1 }}>
