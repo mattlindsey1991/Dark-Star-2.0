@@ -216,6 +216,97 @@ function calcAge(dob) {
   return years.toFixed(1);
 }
 
+function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen, onToggleOpen, formatOption }) {
+  const count = selected.size;
+  return (
+    <div style={{ position: "relative" }} className="no-print">
+      <button
+        onClick={onToggleOpen}
+        className="db-btn"
+        style={{
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: "11.5px",
+          padding: "6px 10px",
+          fontWeight: count > 0 ? 700 : 400,
+          borderColor: count > 0 ? COLORS.offense : COLORS.hair,
+          color: count > 0 ? COLORS.offense : COLORS.inkDim,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}{count > 0 ? ` (${count})` : ""} ▾
+      </button>
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            zIndex: 50,
+            background: COLORS.surface,
+            border: `1px solid ${COLORS.hair}`,
+            borderRadius: "6px",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.35)",
+            minWidth: "180px",
+            maxHeight: "280px",
+            overflowY: "auto",
+            padding: "6px",
+          }}
+        >
+          {count > 0 && (
+            <button
+              onClick={onClear}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                background: "none",
+                border: "none",
+                color: "#E24C4C",
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontSize: "11px",
+                padding: "4px 6px",
+                cursor: "pointer",
+                marginBottom: "4px",
+              }}
+            >
+              Clear all
+            </button>
+          )}
+          {options.map((opt) => (
+            <label
+              key={opt}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "4px 6px",
+                fontSize: "11.5px",
+                fontFamily: "'IBM Plex Mono', monospace",
+                color: COLORS.ink,
+                cursor: "pointer",
+                borderRadius: "4px",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(opt)}
+                onChange={() => onToggle(opt)}
+                style={{ flexShrink: 0 }}
+              />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {formatOption ? formatOption(opt) : opt}
+              </span>
+            </label>
+          ))}
+          {options.length === 0 && (
+            <div style={{ fontSize: "11px", color: COLORS.inkDim, padding: "4px 6px" }}>No options</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DraftBoard({ session }) {
   const [prospects, setProspects] = useState([]);
   const [vets, setVets] = useState([]);
@@ -225,8 +316,26 @@ export default function DraftBoard({ session }) {
   const [loaded, setLoaded] = useState(false);
   const [board, setBoard] = useState("OFFENSE");
   const [year, setYear] = useState(2027);
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("bigboard_view_mode") || "list";
+    } catch {
+      return "list";
+    }
+  });
   const [search, setSearch] = useState("");
   const [a1Only, setA1Only] = useState(false);
+  const [listFilters, setListFilters] = useState({
+    position: new Set(),
+    school: new Set(),
+    status: new Set(),
+    agent: new Set(),
+    tier: new Set(),
+    draftYear: new Set(),
+  });
+  const [listSort, setListSort] = useState({ key: "avg", dir: "asc" });
+  const [listExpandedId, setListExpandedId] = useState(null);
+  const [openFilterKey, setOpenFilterKey] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [addOpenFor, setAddOpenFor] = useState(null);
   const [addDraft, setAddDraft] = useState({ name: "", school: "", entryYear: 2024 });
@@ -253,6 +362,19 @@ export default function DraftBoard({ session }) {
 
   const isVetView = year === "VET" && sport === "FOOTBALL";
   const isBasketball = sport === "BASKETBALL";
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bigboard_view_mode", viewMode);
+    } catch {}
+  }, [viewMode]);
+
+  // List View only supports football prospects (agents/tier/etc. are prospect-specific fields)
+  useEffect(() => {
+    if (viewMode === "list" && (isBasketball || isVetView)) {
+      setViewMode("board");
+    }
+  }, [isBasketball, isVetView, viewMode]);
 
   const fetchAll = useCallback(async () => {
     const pageSize = 1000;
@@ -366,6 +488,135 @@ export default function DraftBoard({ session }) {
     });
     return map;
   }, [prospects, positions, year, search, a1Only]);
+
+  const listRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const { position, school, status, agent, tier, draftYear } = listFilters;
+    let rows = prospects
+      .filter((pr) => !a1Only || pr.is_a1)
+      .filter((pr) => position.size === 0 || position.has(pr.position))
+      .filter((pr) => school.size === 0 || school.has(pr.school))
+      .filter((pr) => status.size === 0 || status.has(pr.recruiting_status))
+      .filter((pr) => tier.size === 0 || tier.has(pr.college_tier))
+      .filter((pr) => draftYear.size === 0 || draftYear.has(pr.draft_class_year))
+      .filter(
+        (pr) =>
+          agent.size === 0 ||
+          agent.has(pr.agent_1) ||
+          agent.has(pr.agent_2) ||
+          agent.has(pr.agent_3)
+      )
+      .filter(
+        (pr) =>
+          !q ||
+          pr.name.toLowerCase().includes(q) ||
+          (pr.school || "").toLowerCase().includes(q) ||
+          (pr.other_agency || "").toLowerCase().includes(q)
+      )
+      .map((pr) => ({ ...pr, __avg: computeAvg(pr.grades), __tier: gradeTier(computeAvg(pr.grades)) }));
+
+    const { key, dir } = listSort;
+    const mul = dir === "asc" ? 1 : -1;
+    const tierRank = { "High $$$": 3, "Mid $$": 2, "Low $": 1 };
+    rows.sort((a, b) => {
+      let av, bv;
+      switch (key) {
+        case "avg":
+          av = a.__avg === null ? Infinity : a.__avg;
+          bv = b.__avg === null ? Infinity : b.__avg;
+          break;
+        case "tier":
+          av = tierRank[a.college_tier] || 0;
+          bv = tierRank[b.college_tier] || 0;
+          break;
+        case "name":
+          av = a.name.toLowerCase();
+          bv = b.name.toLowerCase();
+          break;
+        case "position":
+          av = a.position || "";
+          bv = b.position || "";
+          break;
+        case "school":
+          av = schoolNameOf(a.school).toLowerCase();
+          bv = schoolNameOf(b.school).toLowerCase();
+          break;
+        case "status":
+          av = a.recruiting_status || "";
+          bv = b.recruiting_status || "";
+          break;
+        case "date_assigned":
+          av = a.date_assigned || "";
+          bv = b.date_assigned || "";
+          break;
+        case "entry_year":
+          av = a.entry_year || 0;
+          bv = b.entry_year || 0;
+          break;
+        case "draft_class_year":
+          av = a.draft_class_year || 0;
+          bv = b.draft_class_year || 0;
+          break;
+        case "agent_1":
+          av = a.agent_1 || "";
+          bv = b.agent_1 || "";
+          break;
+        case "agent_2":
+          av = a.agent_2 || "";
+          bv = b.agent_2 || "";
+          break;
+        case "agent_3":
+          av = a.agent_3 || "";
+          bv = b.agent_3 || "";
+          break;
+        default:
+          av = 0;
+          bv = 0;
+      }
+      if (av < bv) return -1 * mul;
+      if (av > bv) return 1 * mul;
+      return 0;
+    });
+    return rows;
+  }, [prospects, search, a1Only, listFilters, listSort]);
+
+  const listFilterOptions = useMemo(() => {
+    const schools = new Set();
+    const statuses = new Set();
+    const tiers = new Set();
+    const draftYears = new Set();
+    prospects.forEach((p) => {
+      if (p.school) schools.add(p.school);
+      if (p.recruiting_status) statuses.add(p.recruiting_status);
+      if (p.college_tier) tiers.add(p.college_tier);
+      if (p.draft_class_year) draftYears.add(p.draft_class_year);
+    });
+    return {
+      position: ALL_POSITIONS.map((p) => p.abbr),
+      school: Array.from(schools).sort(),
+      status: RECRUITING_STATUS_OPTIONS.filter((s) => statuses.has(s)),
+      agent: AGENT_INITIALS,
+      tier: COLLEGE_TIER_OPTIONS,
+      draftYear: Array.from(draftYears).sort((a, b) => a - b),
+    };
+  }, [prospects]);
+
+  function toggleListFilter(key, value) {
+    setListFilters((prev) => {
+      const next = new Set(prev[key]);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return { ...prev, [key]: next };
+    });
+  }
+
+  function clearListFilter(key) {
+    setListFilters((prev) => ({ ...prev, [key]: new Set() }));
+  }
+
+  function toggleListSort(key) {
+    setListSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  }
 
   const groupedVets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1638,7 +1889,30 @@ ${extraStyles}
             ))}
           </div>
 
-          {!isBasketball && (
+          {!isBasketball && !isVetView && (
+            <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
+              {["list", "board"].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setViewMode(m)}
+                  style={{
+                    fontFamily: "'Bebas Neue', sans-serif",
+                    fontSize: "15px",
+                    letterSpacing: "1px",
+                    padding: "8px 16px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: viewMode === m ? "rgba(201,151,62,0.14)" : "transparent",
+                    color: viewMode === m ? "#C9973E" : COLORS.inkDim,
+                  }}
+                >
+                  {m === "list" ? "LIST VIEW" : "BOARD VIEW"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!isBasketball && viewMode === "board" && (
             <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
               {["OFFENSE", "DEFENSE"].map((b) => (
                 <button
@@ -1661,6 +1935,7 @@ ${extraStyles}
             </div>
           )}
 
+          {(isBasketball || viewMode === "board") && (
           <div style={{ display: "flex", gap: "6px" }}>
             {isBasketball
               ? BB_YEARS.map((y) => (
@@ -1715,6 +1990,7 @@ ${extraStyles}
               </button>
             )}
           </div>
+          )}
 
           <label
             className="no-print"
@@ -1836,9 +2112,50 @@ ${extraStyles}
           )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
-            {totalCount} {isVetView ? "players" : "prospects"} · {isBasketball ? bbYear : year}
+            {viewMode === "list" && !isBasketball ? listRows.length : totalCount} {isVetView ? "players" : "prospects"} {viewMode === "board" || isBasketball ? `· ${isBasketball ? bbYear : year}` : "· all years"}
           </div>
         </div>
+
+        {viewMode === "list" && !isBasketball && !isVetView && (
+          <div className="no-print" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+            {[
+              { key: "position", label: "Position" },
+              { key: "school", label: "School", format: (v) => schoolNameOf(v) },
+              { key: "status", label: "Status" },
+              { key: "agent", label: "Agent", format: (v) => agentNameOf(v) },
+              { key: "tier", label: "Tier" },
+              { key: "draftYear", label: "Draft Year" },
+            ].map((f) => (
+              <MultiSelectFilter
+                key={f.key}
+                label={f.label}
+                options={listFilterOptions[f.key]}
+                selected={listFilters[f.key]}
+                onToggle={(v) => toggleListFilter(f.key, v)}
+                onClear={() => clearListFilter(f.key)}
+                isOpen={openFilterKey === f.key}
+                onToggleOpen={() => setOpenFilterKey(openFilterKey === f.key ? null : f.key)}
+                formatOption={f.format}
+              />
+            ))}
+            {Object.values(listFilters).some((s) => s.size > 0) && (
+              <button
+                onClick={() => setListFilters({ position: new Set(), school: new Set(), status: new Set(), agent: new Set(), tier: new Set(), draftYear: new Set() })}
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: "11px",
+                  color: "#E24C4C",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+        )}
 
         {reportOpen && (
           <div
@@ -2092,7 +2409,7 @@ ${extraStyles}
           </div>
         )}
 
-        {!loaded ? (
+        {(viewMode === "board" || isBasketball || isVetView) && (!loaded ? (
           <div style={{ color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px" }}>Loading board…</div>
         ) : (
           <div className="board-columns" style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "12px" }}>
@@ -3298,6 +3615,241 @@ ${extraStyles}
                 </div>
               );
             })}
+          </div>
+        ))}
+
+        {viewMode === "list" && !isBasketball && !isVetView && loaded && (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px" }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${COLORS.hair}` }}>
+                  {[
+                    { key: "avg", label: "GRADE" },
+                    { key: "tier", label: "$ TIER" },
+                    { key: "name", label: "PLAYER" },
+                    { key: "position", label: "POS" },
+                    { key: "school", label: "SCHOOL" },
+                    { key: "status", label: "STATUS" },
+                    { key: "date_assigned", label: "ASSIGNED" },
+                    { key: "entry_year", label: "ENT" },
+                    { key: "draft_class_year", label: "DRAFT" },
+                    { key: "agent_1", label: "AGENT 1" },
+                    { key: "agent_2", label: "AGENT 2" },
+                    { key: "agent_3", label: "AGENT 3" },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => toggleListSort(col.key)}
+                      style={{
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        cursor: "pointer",
+                        color: listSort.key === col.key ? accent : COLORS.inkDim,
+                        fontWeight: 700,
+                        fontSize: "10.5px",
+                        whiteSpace: "nowrap",
+                        userSelect: "none",
+                      }}
+                    >
+                      {col.label}{listSort.key === col.key ? (listSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {listRows.map((p) => {
+                  const isOpen = listExpandedId === p.id;
+                  return (
+                    <React.Fragment key={p.id}>
+                      <tr
+                        onClick={() => setListExpandedId(isOpen ? null : p.id)}
+                        style={{
+                          borderBottom: `1px solid ${COLORS.hair}`,
+                          cursor: "pointer",
+                          background: isOpen ? COLORS.surfaceHi : "transparent",
+                        }}
+                      >
+                        <td style={{ padding: "7px 10px" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "30px",
+                              height: "30px",
+                              borderRadius: "50%",
+                              background: p.__tier.filled ? p.__tier.color : "transparent",
+                              border: `1.5px solid ${p.__tier.filled ? "rgba(255,255,255,0.15)" : p.__tier.color}`,
+                              color: p.__tier.filled ? p.__tier.text : p.__tier.color,
+                              fontWeight: 700,
+                              fontSize: "11px",
+                            }}
+                          >
+                            {fmtGrade(p.__avg)}
+                          </span>
+                        </td>
+                        <td style={{ padding: "7px 10px", color: tierDollarColor(p.college_tier), fontWeight: 800 }}>
+                          {p.college_tier ? "$".repeat((p.college_tier.match(/\$/g) || []).length) : "—"}
+                        </td>
+                        <td style={{ padding: "7px 10px", fontWeight: 700, color: COLORS.ink }}>
+                          {p.name}
+                          {p.is_a1 && <span style={{ color: "#E24C4C", marginLeft: "6px", fontSize: "9.5px", fontWeight: 800 }}>A1</span>}
+                        </td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.position}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{schoolNameOf(p.school)}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim, fontSize: "10.5px" }}>{p.recruiting_status || "—"}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.date_assigned || "—"}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.entry_year || "—"}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.draft_class_year}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.agent_1 || "—"}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.agent_2 || "—"}</td>
+                        <td style={{ padding: "7px 10px", color: COLORS.inkDim }}>{p.agent_3 || "—"}</td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="no-print">
+                          <td colSpan={12} style={{ padding: 0, background: COLORS.surfaceHi, borderBottom: `1px solid ${COLORS.hair}` }}>
+                            <div style={{ padding: "16px 20px", display: "flex", gap: "26px", flexWrap: "wrap" }}>
+                              <div style={{ minWidth: "220px" }}>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Recruiting Status</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  value={p.recruiting_status || ""}
+                                  onChange={(e) => updateProspect(p.id, { recruiting_status: e.target.value || null })}
+                                >
+                                  <option value="">—</option>
+                                  {RECRUITING_STATUS_OPTIONS.map((s) => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>College Tier</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  value={p.college_tier || ""}
+                                  onChange={(e) => updateProspect(p.id, { college_tier: e.target.value || null })}
+                                >
+                                  <option value="">—</option>
+                                  {COLLEGE_TIER_OPTIONS.map((t) => (
+                                    <option key={t} value={t}>{t}</option>
+                                  ))}
+                                </select>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Date Assigned</label>
+                                <input
+                                  type="date"
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  defaultValue={p.date_assigned || ""}
+                                  onBlur={(e) => updateProspect(p.id, { date_assigned: e.target.value || null })}
+                                />
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                    color: p.is_a1 ? "#E24C4C" : COLORS.inkDim,
+                                    fontWeight: p.is_a1 ? 700 : 400,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!p.is_a1}
+                                    onChange={(e) => updateProspect(p.id, { is_a1: e.target.checked })}
+                                  />
+                                  Mark as A1 client
+                                </label>
+                              </div>
+                              <div style={{ minWidth: "220px" }}>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agent 1</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  value={p.agent_1 || ""}
+                                  onChange={(e) => updateProspect(p.id, { agent_1: e.target.value || null })}
+                                >
+                                  <option value="">—</option>
+                                  {AGENT_INITIALS.map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agent 2</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  value={p.agent_2 || ""}
+                                  onChange={(e) => updateProspect(p.id, { agent_2: e.target.value || null })}
+                                >
+                                  <option value="">—</option>
+                                  {AGENT_INITIALS.map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Agent 3</label>
+                                <select
+                                  className="db-input"
+                                  style={{ width: "100%", marginBottom: "8px" }}
+                                  value={p.agent_3 || ""}
+                                  onChange={(e) => updateProspect(p.id, { agent_3: e.target.value || null })}
+                                >
+                                  <option value="">—</option>
+                                  {AGENT_INITIALS.map((a) => (
+                                    <option key={a} value={a}>{a}</option>
+                                  ))}
+                                </select>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Other Agency</label>
+                                <input
+                                  className="db-input"
+                                  style={{ width: "100%" }}
+                                  placeholder="e.g. Rosenhaus, CAA, Excel"
+                                  defaultValue={p.other_agency}
+                                  onBlur={(e) => updateProspect(p.id, { other_agency: e.target.value || null })}
+                                />
+                              </div>
+                              <div style={{ minWidth: "260px", flex: 1 }}>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Notes</label>
+                                <textarea
+                                  className="db-input"
+                                  style={{ width: "100%", minHeight: "70px", resize: "vertical" }}
+                                  defaultValue={p.notes || ""}
+                                  onBlur={(e) => updateProspect(p.id, { notes: e.target.value || null })}
+                                />
+                              </div>
+                              <div style={{ minWidth: "240px" }}>
+                                <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "6px" }}>
+                                  Grades ({p.grades.length}) — add/edit in Board View
+                                </label>
+                                {p.grades.map((g) => (
+                                  <div key={g.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: COLORS.inkDim, marginBottom: "3px" }}>
+                                    <span style={{ flex: 1 }}>{g.team || "—"} · {g.scout_name || g.scout} · {g.month}/{g.year}</span>
+                                    <span style={{ fontWeight: 700, color: COLORS.ink }}>{g.grade}</span>
+                                    <button
+                                      onClick={() => deleteGrade(p.id, g.id)}
+                                      style={{ background: "none", border: "none", color: "#E24C4C", cursor: "pointer", fontSize: "13px", lineHeight: 1 }}
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ))}
+                                {p.grades.length === 0 && (
+                                  <div style={{ fontSize: "11px", color: COLORS.inkDim }}>No grades yet.</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+            {listRows.length === 0 && (
+              <div style={{ padding: "30px", textAlign: "center", color: COLORS.inkDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: "13px" }}>
+                No prospects match these filters.
+              </div>
+            )}
           </div>
         )}
       </div>
