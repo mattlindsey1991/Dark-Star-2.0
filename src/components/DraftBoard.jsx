@@ -3624,7 +3624,7 @@ ${extraStyles}
 
         {viewMode === "list" && !isBasketball && !isVetView && loaded && (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "'Inter', sans-serif", fontSize: "12px" }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${COLORS.hair}` }}>
                   {[
@@ -3641,7 +3641,7 @@ ${extraStyles}
                     { key: "agent_2", label: "AGENT 2" },
                     { key: "agent_3", label: "AGENT 3" },
                     { key: "other_agency", label: "OTHER AGENCY" },
-                  ].map((col) => (
+                  ].map((col, i, arr) => (
                     <th
                       key={col.key}
                       onClick={() => toggleListSort(col.key)}
@@ -3655,6 +3655,7 @@ ${extraStyles}
                         letterSpacing: "0.3px",
                         whiteSpace: "nowrap",
                         userSelect: "none",
+                        borderRight: i < arr.length - 1 ? `1px solid ${COLORS.hair}` : "none",
                       }}
                     >
                       {col.label}{listSort.key === col.key ? (listSort.dir === "asc" ? " \u25B2" : " \u25BC") : ""}
@@ -3676,7 +3677,7 @@ ${extraStyles}
                           fontSize: "12.5px",
                         }}
                       >
-                        <td style={{ padding: "8px 10px" }}>
+                        <td style={{ padding: "8px 10px", borderRight: `1px solid ${COLORS.hair}` }}>
                           <span
                             style={{
                               display: "inline-flex",
@@ -3695,22 +3696,22 @@ ${extraStyles}
                             {fmtGrade(p.__avg)}
                           </span>
                         </td>
-                        <td style={{ padding: "8px 10px", color: tierDollarColor(p.college_tier), fontWeight: 800 }}>
+                        <td style={{ padding: "8px 10px", color: tierDollarColor(p.college_tier), fontWeight: 800, borderRight: `1px solid ${COLORS.hair}` }}>
                           {p.college_tier ? "$".repeat((p.college_tier.match(/\$/g) || []).length) : "—"}
                         </td>
-                        <td style={{ padding: "8px 10px", fontWeight: 800, color: COLORS.ink }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 800, color: COLORS.ink, textTransform: "uppercase", borderRight: `1px solid ${COLORS.hair}` }}>
                           {p.name}
                           {p.is_a1 && <span style={{ color: "#E24C4C", marginLeft: "6px", fontSize: "9.5px", fontWeight: 800 }}>A1</span>}
                         </td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.position}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{schoolNameOf(p.school)}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, fontSize: "11px" }}>{p.recruiting_status || "—"}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.date_assigned || "—"}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.entry_year || "—"}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{p.draft_class_year}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{agentNameOf(p.agent_1) || "—"}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{agentNameOf(p.agent_2) || "—"}</td>
-                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600 }}>{agentNameOf(p.agent_3) || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{p.position}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{schoolNameOf(p.school)}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, fontSize: "11px", borderRight: `1px solid ${COLORS.hair}` }}>{p.recruiting_status || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{p.date_assigned || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{p.entry_year || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{p.draft_class_year}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{agentNameOf(p.agent_1) || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{agentNameOf(p.agent_2) || "—"}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.ink, fontWeight: 600, borderRight: `1px solid ${COLORS.hair}` }}>{agentNameOf(p.agent_3) || "—"}</td>
                         <td style={{ padding: "8px 10px", color: p.other_agency ? "#E88080" : COLORS.ink, fontWeight: p.other_agency ? 800 : 600 }}>{p.other_agency || "—"}</td>
                       </tr>
                       {isOpen && (
