@@ -2701,36 +2701,50 @@ ${extraStyles}
                                 })()}
                               </div>
                             </div>
-                            {p.is_a1 && (
-                              <span
+                            {(p.is_a1 || p.college_tier) && (
+                              <div
                                 style={{
-                                  fontFamily: "'IBM Plex Mono', monospace",
-                                  fontSize: "11px",
-                                  fontWeight: 800,
-                                  color: "#E24C4C",
-                                  border: "1.5px solid #E24C4C",
-                                  borderRadius: "4px",
-                                  padding: "2px 5px",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "2px",
                                   flexShrink: 0,
-                                  letterSpacing: "0.5px",
+                                  minWidth: "26px",
                                 }}
                               >
-                                A1
-                              </span>
-                            )}
-                            {p.college_tier && (
-                              <span
-                                title={p.college_tier}
-                                style={{
-                                  fontFamily: "'IBM Plex Mono', monospace",
-                                  fontSize: "15px",
-                                  fontWeight: 800,
-                                  color: tierDollarColor(p.college_tier),
-                                  flexShrink: 0,
-                                }}
-                              >
-                                {"$".repeat((p.college_tier.match(/\$/g) || []).length)}
-                              </span>
+                                {p.is_a1 && (
+                                  <span
+                                    style={{
+                                      fontFamily: "'IBM Plex Mono', monospace",
+                                      fontSize: "9.5px",
+                                      fontWeight: 800,
+                                      color: "#E24C4C",
+                                      border: "1.5px solid #E24C4C",
+                                      borderRadius: "4px",
+                                      padding: "1px 4px",
+                                      letterSpacing: "0.3px",
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    A1
+                                  </span>
+                                )}
+                                {p.college_tier && (
+                                  <span
+                                    title={p.college_tier}
+                                    style={{
+                                      fontFamily: "'IBM Plex Mono', monospace",
+                                      fontSize: "12px",
+                                      fontWeight: 800,
+                                      color: tierDollarColor(p.college_tier),
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    {"$".repeat((p.college_tier.match(/\$/g) || []).length)}
+                                  </span>
+                                )}
+                              </div>
                             )}
                             <div
                               title={gradeDefinition(avg)}
