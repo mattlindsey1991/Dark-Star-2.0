@@ -522,9 +522,22 @@ export default function DraftBoard({ session }) {
     const q = search.trim().toLowerCase();
     const map = {};
     positions.forEach((p) => (map[p.abbr] = []));
+    const { position, school, status, agent, tier, draftYear } = listFilters;
     prospects
       .filter((pr) => pr.draft_class_year === year && map[pr.position] !== undefined)
       .filter((pr) => !a1Only || pr.is_a1)
+      .filter((pr) => position.size === 0 || position.has(pr.position))
+      .filter((pr) => school.size === 0 || school.has(pr.school))
+      .filter((pr) => status.size === 0 || status.has(pr.recruiting_status))
+      .filter((pr) => tier.size === 0 || tier.has(pr.college_tier))
+      .filter((pr) => draftYear.size === 0 || draftYear.has(pr.draft_class_year))
+      .filter(
+        (pr) =>
+          agent.size === 0 ||
+          agent.has(pr.agent_1) ||
+          agent.has(pr.agent_2) ||
+          agent.has(pr.agent_3)
+      )
       .filter(
         (pr) =>
           !q ||
@@ -544,7 +557,7 @@ export default function DraftBoard({ session }) {
       });
     });
     return map;
-  }, [prospects, positions, year, search, a1Only]);
+  }, [prospects, positions, year, search, a1Only, listFilters]);
 
   const listRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -2211,7 +2224,7 @@ ${extraStyles}
           </div>
         </div>
 
-        {viewMode === "list" && !isBasketball && !isVetView && (
+        {(viewMode === "list" || viewMode === "board") && !isBasketball && !isVetView && (
           <div className="no-print" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
             {[
               { key: "position", label: "Position" },
@@ -2250,22 +2263,24 @@ ${extraStyles}
                 Clear all filters
               </button>
             )}
-            <button
-              onClick={() => setListAddOpen((v) => !v)}
-              className="db-btn"
-              style={{
-                fontFamily: "'IBM Plex Mono', monospace",
-                fontSize: "11.5px",
-                padding: "6px 10px",
-                marginLeft: "auto",
-                fontWeight: 700,
-                borderColor: accent,
-                color: accent,
-                whiteSpace: "nowrap",
-              }}
-            >
-              + Add Prospect
-            </button>
+            {viewMode === "list" && (
+              <button
+                onClick={() => setListAddOpen((v) => !v)}
+                className="db-btn"
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: "11.5px",
+                  padding: "6px 10px",
+                  marginLeft: "auto",
+                  fontWeight: 700,
+                  borderColor: accent,
+                  color: accent,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                + Add Prospect
+              </button>
+            )}
           </div>
         )}
 
