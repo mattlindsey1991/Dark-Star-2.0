@@ -1000,25 +1000,24 @@ export default function DraftBoard({ session }) {
             <td>${p.entry_year || ""}</td>
             <td>${p.draft_class_year}</td>
             <td style="background:${tier.color};color:${tier.text};font-weight:800;text-align:center;">${fmtGrade(avg)}</td>
+            <td style="color:${tierDollarColor(p.college_tier)};font-weight:800;text-align:center;">${p.college_tier ? "$".repeat((p.college_tier.match(/\$/g) || []).length) : ""}</td>
             <td class="status-cell">${p.recruiting_status || ""}</td>
+            <td style="text-align:center;">${assignedDisplay}</td>
             <td>${agentNameOf(p.agent_1)}</td>
             <td>${agentNameOf(p.agent_2)}</td>
             <td>${agentNameOf(p.agent_3)}</td>
             <td>${p.other_agency || ""}</td>
-            <td style="color:${tierDollarColor(p.college_tier)};font-weight:800;text-align:center;">${p.college_tier ? "$".repeat((p.college_tier.match(/\$/g) || []).length) : ""}</td>
-            <td style="text-align:center;">${assignedDisplay}</td>
           </tr>`;
         })
         .join("");
       bodyContent = `<table>
         <colgroup>
           <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
-          <col class="col-grade" /><col class="col-status" />
+          <col class="col-grade" /><col class="col-tier" /><col class="col-status" /><col class="col-assigned" />
           <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
-          <col class="col-tier" /><col class="col-assigned" />
         </colgroup>
         <thead>
-          <tr><th>Name</th><th>Pos.</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>NFL Grade</th><th>Recruiting Status</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th><th>Tier</th><th>Assigned</th></tr>
+          <tr><th>Name</th><th>Pos.</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>NFL Grade</th><th>Tier</th><th>Recruiting Status</th><th>Assigned</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
       </table>`;
