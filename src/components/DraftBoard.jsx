@@ -4,23 +4,23 @@ import * as XLSX from "xlsx";
 
 const OFFENSE_POSITIONS = [
   { abbr: "QB", name: "Quarterback" },
-  { abbr: "RB", name: "Running back" },
-  { abbr: "WR", name: "Wide receiver" },
-  { abbr: "TE", name: "Tight end" },
-  { abbr: "OT", name: "Offensive tackle" },
-  { abbr: "OG", name: "Offensive guard" },
+  { abbr: "RB", name: "Running Back" },
+  { abbr: "WR", name: "Wide Receiver" },
+  { abbr: "TE", name: "Tight End" },
+  { abbr: "OT", name: "Offensive Tackle" },
+  { abbr: "OG", name: "Offensive Guard" },
   { abbr: "OC", name: "Center" },
 ];
 
 const DEFENSE_POSITIONS = [
-  { abbr: "DL", name: "Defensive line" },
-  { abbr: "EDGE", name: "Edge rusher" },
+  { abbr: "DL", name: "Defensive Line" },
+  { abbr: "EDGE", name: "Edge Rusher" },
   { abbr: "LB", name: "Linebacker" },
   { abbr: "DS", name: "Safety" },
   { abbr: "DC", name: "Cornerback" },
   { abbr: "PT", name: "Punter" },
   { abbr: "PK", name: "Kicker" },
-  { abbr: "LS", name: "Long snapper" },
+  { abbr: "LS", name: "Long Snapper" },
 ];
 
 const YEARS = [2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035, 2036, 2037];
