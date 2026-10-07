@@ -1062,7 +1062,7 @@ export default function DraftBoard({ session }) {
 <html>
 <head>
 <meta charset="utf-8" />
-<title>THE BIG BOARD — Report</title>
+<title>A1 DARK STAR — Report</title>
 <style>
   @page { size: portrait; margin: 14mm; }
   * { box-sizing: border-box; }
@@ -1127,7 +1127,7 @@ ${extraStyles}
   <div class="header-bar">
     <div class="brand">ATHLETES &middot; FIRST</div>
     <div class="doctype">
-      <div class="line1">THE BIG BOARD</div>
+      <div class="line1">A1 DARK STAR</div>
       <div class="line2">${isGrades ? "GRADE REPORT" : "PROSPECT REPORT"}</div>
     </div>
   </div>
@@ -1900,7 +1900,7 @@ ${extraStyles}
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}>
             <h1 style={{ fontFamily: "'Anton', sans-serif", fontSize: "40px", letterSpacing: "1px", margin: 0, lineHeight: 1 }}>
-              THE BIG BOARD
+              A1 DARK STAR
             </h1>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim, letterSpacing: "1px" }}>
               {session.user.email}
