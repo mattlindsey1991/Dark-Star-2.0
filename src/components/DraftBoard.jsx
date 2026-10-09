@@ -86,6 +86,7 @@ const BB_YEARS = ["HS-2027", "HS-2028", "HS-2029", "HS-2030", "HS-2031", "Colleg
 const BB_PRIORITIES = ["High", "Medium", "Low"];
 const BB_STATUSES = ["Target", "Evaluating", "Contacted", "Warm", "Signed"];
 
+const POSITION_REPORT_ORDER = ["QB", "RB", "WR", "TE", "OT", "OG", "OC", "DL", "EDGE", "LB", "DS", "DC", "PT", "PK", "LS"];
 const POSITION_BOARD = {};
 OFFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "OFFENSE"));
 DEFENSE_POSITIONS.forEach((p) => (POSITION_BOARD[p.abbr] = "DEFENSE"));
@@ -791,6 +792,30 @@ export default function DraftBoard({ session }) {
       });
   }, [reportRows]);
 
+  const positionGroups = useMemo(() => {
+    const nameByAbbr = {};
+    [...OFFENSE_POSITIONS, ...DEFENSE_POSITIONS].forEach((p) => (nameByAbbr[p.abbr] = p.name));
+    const byPos = {};
+    reportRows.forEach((p) => {
+      (byPos[p.position] = byPos[p.position] || []).push(p);
+    });
+    const extra = Object.keys(byPos).filter((k) => !POSITION_REPORT_ORDER.includes(k)).sort();
+    return [...POSITION_REPORT_ORDER, ...extra]
+      .filter((abbr) => byPos[abbr] && byPos[abbr].length)
+      .map((abbr) => ({
+        abbr,
+        name: nameByAbbr[abbr] || abbr,
+        rows: byPos[abbr].slice().sort((a, b) => {
+          const av = computeAvg(a.grades);
+          const bv = computeAvg(b.grades);
+          if (av === null && bv === null) return a.name.localeCompare(b.name);
+          if (av === null) return 1;
+          if (bv === null) return -1;
+          return av - bv || a.name.localeCompare(b.name);
+        }),
+      }));
+  }, [reportRows]);
+
   const GRID_POSITIONS = ["QB", "RB", "WR", "TE", "OT", "OG", "OC", "DL", "EDGE", "LB", "DS", "DC", "PK", "PT", "LS"];
 
   const agentGridData = useMemo(() => {
@@ -865,7 +890,8 @@ export default function DraftBoard({ session }) {
       });
       sheetName = "Grade Report";
     } else {
-      rows = reportRows.map((p) => {
+      const exportList = reportType === "position" ? positionGroups.flatMap((g) => g.rows) : reportRows;
+      rows = exportList.map((p) => {
         const avg = computeAvg(p.grades);
         return {
           Name: p.name,
@@ -892,7 +918,7 @@ export default function DraftBoard({ session }) {
       reportFilters.school && `School-${reportFilters.school}`,
       reportFilters.year && `Year-${reportFilters.year}`,
     ].filter(Boolean);
-    const typeLabel = reportType === "grades" ? "GradeReport" : "Report";
+    const typeLabel = reportType === "grades" ? "GradeReport" : reportType === "position" ? "PositionReport" : "Report";
     const filename = `BigBoard_${typeLabel}${filterBits.length ? "_" + filterBits.join("_") : ""}.xlsx`;
     XLSX.writeFile(wb, filename);
   }
@@ -905,7 +931,7 @@ export default function DraftBoard({ session }) {
       reportFilters.year && `Class Year: ${reportFilters.year}`,
     ].filter(Boolean);
     const filterLabel = filterLabelParts.length ? filterLabelParts.join(" · ") : "All Prospects";
-    const sortLabel = SORT_LABELS[reportSortBy] || "Name";
+    const sortLabel = reportType === "position" ? "Position, then Grade (Best to Worst)" : (SORT_LABELS[reportSortBy] || "Name");
 
     const isGrades = reportType === "grades";
     const rowCount = isGrades
@@ -983,8 +1009,7 @@ export default function DraftBoard({ session }) {
         .join("");
       bodyContent = blocks;
     } else {
-      const rowsHtml = reportRows
-        .map((p) => {
+      const buildRowHtml = (p) => {
           const avg = computeAvg(p.grades);
           const tier = gradeTier(avg, COLORS);
           const assignedDisplay = p.date_assigned
@@ -1008,21 +1033,33 @@ export default function DraftBoard({ session }) {
             <td>${agentNameOf(p.agent_3)}</td>
             <td>${p.other_agency || ""}</td>
           </tr>`;
-        })
-        .join("");
-      bodyContent = `<table>
-        <colgroup>
+      };
+      const colgroupHtml = `<colgroup>
           <col class="col-name" /><col class="col-pos" /><col class="col-school" /><col class="col-entry" /><col class="col-class" />
           <col class="col-grade" /><col class="col-tier" /><col class="col-status" /><col class="col-assigned" />
           <col class="col-agent" /><col class="col-agent" /><col class="col-agent" /><col class="col-other" />
-        </colgroup>
-        <thead>
+        </colgroup>`;
+      const theadHtml = `<thead>
           <tr><th>Name</th><th>Pos.</th><th>School</th><th>Entry Year</th><th>Class Year</th><th>NFL Grade</th><th>Tier</th><th>Recruiting Status</th><th>Assigned</th><th>Agent 1</th><th>Agent 2</th><th>Agent 3</th><th>Other Agency</th></tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>`;
+        </thead>`;
+      if (reportType === "position") {
+        extraStyles = `
+  .group-bar { background: #111; color: #fff; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 6px 8px; margin-top: 16px; border-bottom: 3px solid #A6192E; page-break-after: avoid; }
+  .group-bar .group-count { color: #ccc; font-weight: 600; font-size: 10px; margin-left: 8px; letter-spacing: 0.5px; }
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+`;
+        bodyContent = positionGroups
+          .map(
+            (g) => `<div class="group-bar">${g.abbr} &mdash; ${g.name}<span class="group-count">${g.rows.length} prospect${g.rows.length === 1 ? "" : "s"}</span></div>
+      <table>${colgroupHtml}${theadHtml}<tbody>${g.rows.map(buildRowHtml).join("")}</tbody></table>`
+          )
+          .join("");
+      } else {
+        bodyContent = `<table>${colgroupHtml}${theadHtml}<tbody>${reportRows.map(buildRowHtml).join("")}</tbody></table>`;
+      }
 
-      if (reportShowAgentGrid && agentGridData) {
+      if (reportType === "list" && reportShowAgentGrid && agentGridData) {
         const g = agentGridData;
         const posHeaderCells = GRID_POSITIONS.map((pos) => `<th>${pos}</th>`).join("");
         const yearRows = g.years
@@ -1128,12 +1165,12 @@ ${extraStyles}
     <div class="brand">ATHLETES &middot; FIRST</div>
     <div class="doctype">
       <div class="line1">A1 DARK STAR</div>
-      <div class="line2">${isGrades ? "GRADE REPORT" : "PROSPECT REPORT"}</div>
+      <div class="line2">${isGrades ? "GRADE REPORT" : reportType === "position" ? "POSITION REPORT" : "PROSPECT REPORT"}</div>
     </div>
   </div>
   <div class="accent-line"></div>
   <div class="content">
-    <h1>${isGrades ? "Grade Report" : "Prospect Report"}</h1>
+    <h1>${isGrades ? "Grade Report" : reportType === "position" ? "Prospect Report by Position" : "Prospect Report"}</h1>
     <div class="subtitle">Generated ${new Date().toLocaleDateString()} · ${playerCount} prospect${playerCount === 1 ? "" : "s"}${isGrades ? ` · ${rowCount} grade${rowCount === 1 ? "" : "s"}` : ""}</div>
     <div class="filters">FILTERS: ${filterLabel.toUpperCase()} &nbsp;·&nbsp; SORTED BY: ${sortLabel.toUpperCase()}</div>
     ${bodyContent}
@@ -2427,6 +2464,7 @@ ${extraStyles}
               <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden", marginBottom: "16px" }}>
                 {[
                   { key: "list", label: "Prospect List" },
+                  { key: "position", label: "By Position" },
                   { key: "grades", label: "Grade Report" },
                 ].map((t) => (
                   <button
@@ -2515,6 +2553,11 @@ ${extraStyles}
                 ))}
               </select>
 
+              {reportType === "position" ? (
+                <div style={{ fontSize: "11.5px", color: COLORS.inkDim, marginBottom: "16px", lineHeight: 1.4 }}>
+                  Grouped by position in board order (QB → LS), sorted best grade to worst within each group, ungraded last. Choose a Class year above to limit the report.
+                </div>
+              ) : (<>
               <label style={{ fontSize: "10.5px", color: COLORS.inkDim, display: "block", marginBottom: "3px" }}>Sort by</label>
               <select
                 className="db-input"
@@ -2528,6 +2571,7 @@ ${extraStyles}
                 <option value="position">Position</option>
                 <option value="classYear">Class Year</option>
               </select>
+              </>)}
 
               <div style={{ fontSize: "12px", color: COLORS.inkDim, marginBottom: "16px" }}>
                 {reportType === "grades"
