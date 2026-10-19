@@ -402,6 +402,8 @@ export default function DraftBoard({ session }) {
   const [reportType, setReportType] = useState("list");
   const [reportShowAgentGrid, setReportShowAgentGrid] = useState(false);
   const [reportSortBy, setReportSortBy] = useState("name");
+  const [reportHideScouts, setReportHideScouts] = useState(false);
+  const [reportIncludeUngraded, setReportIncludeUngraded] = useState(true);
   const [bbGradeDraft, setBbGradeDraft] = useState({ scout: "", grade: GRADE_SCALE[0] });
   const [errorMsg, setErrorMsg] = useState("");
   const [importing, setImporting] = useState(false);
@@ -758,6 +760,14 @@ export default function DraftBoard({ session }) {
         return (a.position || "").localeCompare(b.position || "") || a.name.localeCompare(b.name);
       case "classYear":
         return (a.draft_class_year || 0) - (b.draft_class_year || 0) || a.name.localeCompare(b.name);
+      case "grade": {
+        const ga = computeAvg(a.grades);
+        const gb = computeAvg(b.grades);
+        if (ga === null && gb === null) return a.name.localeCompare(b.name);
+        if (ga === null) return 1;
+        if (gb === null) return -1;
+        return ga - gb || a.name.localeCompare(b.name);
+      }
       default:
         return a.name.localeCompare(b.name);
     }
@@ -780,17 +790,17 @@ export default function DraftBoard({ session }) {
 
   const reportGradeRows = useMemo(() => {
     return reportRows
-      .filter((p) => p.grades && p.grades.length > 0)
+      .filter((p) => reportIncludeUngraded || (p.grades && p.grades.length > 0))
       .map((p) => {
         const avgGrade = computeAvg(p.grades);
         return {
           ...p,
-          sortedGrades: [...p.grades].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)),
+          sortedGrades: [...(p.grades || [])].sort((a, b) => (a.year || 0) - (b.year || 0) || (a.month || 0) - (b.month || 0)),
           avgGrade,
           avgTier: gradeTier(avgGrade, COLORS),
         };
       });
-  }, [reportRows]);
+  }, [reportRows, reportIncludeUngraded]);
 
   const positionGroups = useMemo(() => {
     const nameByAbbr = {};
@@ -857,7 +867,7 @@ export default function DraftBoard({ session }) {
     return { agent, years, grid, positionTotals, yearTotals };
   }, [reportRows, reportFilters.agent]);
 
-  const SORT_LABELS = { name: "Name", lastName: "Last Name", school: "School", position: "Position", classYear: "Class Year" };
+  const SORT_LABELS = { name: "Name", lastName: "Last Name", school: "School", position: "Position", classYear: "Class Year", grade: "Grade (Best to Worst)" };
 
   function schoolNameOf(code) {
     return (code && SCHOOL_CODE_TO_NAME[code]) || code || "";
@@ -873,19 +883,26 @@ export default function DraftBoard({ session }) {
     if (reportType === "grades") {
       rows = [];
       reportGradeRows.forEach((p) => {
+        const base = {
+          Name: p.name,
+          Position: p.position,
+          School: schoolNameOf(p.school),
+          "Class Year": p.draft_class_year,
+          "Average Grade": p.sortedGrades.length ? fmtGrade(p.avgGrade) : "Ungraded",
+        };
+        if (p.sortedGrades.length === 0) {
+          rows.push(reportHideScouts
+            ? { ...base, Team: "", Month: "", Year: "", Grade: "" }
+            : { ...base, Team: "", Scout: "", Month: "", Year: "", Grade: "" });
+          return;
+        }
         p.sortedGrades.forEach((g) => {
-          rows.push({
-            Name: p.name,
-            Position: p.position,
-            School: schoolNameOf(p.school),
-            "Class Year": p.draft_class_year,
-            "Average Grade": fmtGrade(p.avgGrade),
-            Team: g.team || "",
-            Scout: g.scout_name || g.scout || "",
-            Month: g.month || "",
-            Year: g.year || "",
-            Grade: Number(g.grade).toFixed(1),
-          });
+          const row = { ...base, Team: g.team || "" };
+          if (!reportHideScouts) row.Scout = g.scout_name || g.scout || "";
+          row.Month = g.month || "";
+          row.Year = g.year || "";
+          row.Grade = Number(g.grade).toFixed(1);
+          rows.push(row);
         });
       });
       sheetName = "Grade Report";
@@ -968,12 +985,15 @@ export default function DraftBoard({ session }) {
 `;
       const blocks = reportGradeRows
         .map((p) => {
-          const gradesHtml = p.sortedGrades
+          const ungraded = p.sortedGrades.length === 0;
+          const gradesHtml = ungraded
+            ? `<tr><td colspan="${reportHideScouts ? 3 : 4}" style="text-align:center;color:#777;font-style:italic;">No grades yet</td></tr>`
+            : p.sortedGrades
             .map((g) => {
               const t = gradeTier(Number(g.grade), COLORS);
               return `<tr>
                 <td>${g.team || ""}</td>
-                <td>${g.scout_name || g.scout || ""}</td>
+                ${reportHideScouts ? "" : `<td>${g.scout_name || g.scout || ""}</td>`}
                 <td>${g.month && g.year ? `${g.month}/${g.year}` : ""}</td>
                 <td class="grade-cell" style="background:${t.color};color:${t.text};">${Number(g.grade).toFixed(1)}</td>
               </tr>`;
@@ -985,8 +1005,8 @@ export default function DraftBoard({ session }) {
                 <span class="player-name">${p.name}</span>
                 <span class="player-meta">${p.position} &middot; ${schoolNameOf(p.school)} &middot; Class of ${p.draft_class_year}</span>
               </div>
-              <div class="avg-badge" style="background:${p.avgTier.color};color:${p.avgTier.text};">
-                AVG ${fmtGrade(p.avgGrade)}
+              <div class="avg-badge" style="background:${ungraded ? "#bbb" : p.avgTier.color};color:${ungraded ? "#222" : p.avgTier.text};">
+                ${ungraded ? "UNGRADED" : `AVG ${fmtGrade(p.avgGrade)}`}
               </div>
             </div>
             <div class="player-body">
@@ -999,8 +1019,8 @@ export default function DraftBoard({ session }) {
                 <div>Other Agency: ${p.other_agency ? `<span class="other-agency">${p.other_agency}</span>` : "—"}</div>
               </div>
               <table class="grades-table">
-                <colgroup><col style="width:25%" /><col style="width:30%" /><col style="width:20%" /><col style="width:25%" /></colgroup>
-                <thead><tr><th>Team</th><th>Scout</th><th>Date</th><th>Grade</th></tr></thead>
+                <colgroup>${reportHideScouts ? '<col style="width:40%" /><col style="width:30%" /><col style="width:30%" />' : '<col style="width:25%" /><col style="width:30%" /><col style="width:20%" /><col style="width:25%" />'}</colgroup>
+                <thead><tr><th>Team</th>${reportHideScouts ? "" : "<th>Scout</th>"}<th>Date</th><th>Grade</th></tr></thead>
                 <tbody>${gradesHtml}</tbody>
               </table>
             </div>
@@ -2570,12 +2590,26 @@ ${extraStyles}
                 <option value="school">School</option>
                 <option value="position">Position</option>
                 <option value="classYear">Class Year</option>
+                <option value="grade">Grade (Best to Worst)</option>
               </select>
               </>)}
 
+              {reportType === "grades" && (
+                <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <label style={{ fontSize: "12px", color: COLORS.ink, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                    <input type="checkbox" checked={reportHideScouts} onChange={(e) => setReportHideScouts(e.target.checked)} />
+                    Hide scout names (keep team, date, grade)
+                  </label>
+                  <label style={{ fontSize: "12px", color: COLORS.ink, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                    <input type="checkbox" checked={reportIncludeUngraded} onChange={(e) => setReportIncludeUngraded(e.target.checked)} />
+                    Include ungraded players
+                  </label>
+                </div>
+              )}
+
               <div style={{ fontSize: "12px", color: COLORS.inkDim, marginBottom: "16px" }}>
                 {reportType === "grades"
-                  ? `${reportGradeRows.length} prospect${reportGradeRows.length === 1 ? "" : "s"} with grades match these filters.`
+                  ? `${reportGradeRows.length} prospect${reportGradeRows.length === 1 ? "" : "s"} match these filters${reportIncludeUngraded ? "" : " (graded only)"}.`
                   : `${reportRows.length} prospect${reportRows.length === 1 ? "" : "s"} match these filters.`}
               </div>
 
