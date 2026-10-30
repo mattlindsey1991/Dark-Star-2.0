@@ -2,12 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { supabase } from "../supabaseClient";
 import * as XLSX from "xlsx";
 
-// ---- Athletes First brand tokens (chrome only: headers, toggles, buttons) ----
-const AF_RED = "#E31837";
-const FONT_DISPLAY = "'Druk Condensed','Druk','Anton','Bebas Neue',sans-serif";
-const FONT_BODY = "'TT Lakes','Figtree','Inter',sans-serif";
-const FONT_TECH = "'Agency FB','Agency','Saira Condensed','IBM Plex Mono',monospace";
-
 const OFFENSE_POSITIONS = [
   { abbr: "QB", name: "Quarterback" },
   { abbr: "RB", name: "Running Back" },
@@ -132,17 +126,17 @@ function normalizeProjectedValue(raw) {
 }
 
 const DARK_COLORS = {
-  bg: "#0B0B0C",
-  surface: "#151516",
-  surfaceHi: "#212123",
-  ink: "#F4F4F2",
-  inkDim: "#A3A3A0",
-  hair: "rgba(244,244,242,0.11)",
-  hairStrong: "rgba(244,244,242,0.22)",
-  inkTint03: "rgba(244,244,242,0.03)",
-  inkTint04: "rgba(244,244,242,0.04)",
-  inkTint05: "rgba(244,244,242,0.05)",
-  inkTint06: "rgba(244,244,242,0.06)",
+  bg: "#15171A",
+  surface: "#1D2024",
+  surfaceHi: "#242830",
+  ink: "#ECE7DC",
+  inkDim: "#9C9C93",
+  hair: "rgba(236,231,220,0.10)",
+  hairStrong: "rgba(236,231,220,0.18)",
+  inkTint03: "rgba(236,231,220,0.03)",
+  inkTint04: "rgba(236,231,220,0.04)",
+  inkTint05: "rgba(236,231,220,0.05)",
+  inkTint06: "rgba(236,231,220,0.06)",
   offense: "#C98A3E",
   offenseDim: "rgba(201,138,62,0.14)",
   defense: "#3E7B94",
@@ -161,17 +155,17 @@ const DARK_COLORS = {
 };
 
 const LIGHT_COLORS = {
-  bg: "#F2F2F2",
+  bg: "#F6F4EF",
   surface: "#FFFFFF",
-  surfaceHi: "#E8E8E8",
-  ink: "#0B0B0C",
-  inkDim: "#62625F",
-  hair: "rgba(11,11,12,0.13)",
-  hairStrong: "rgba(11,11,12,0.26)",
-  inkTint03: "rgba(11,11,12,0.03)",
-  inkTint04: "rgba(11,11,12,0.05)",
-  inkTint05: "rgba(11,11,12,0.06)",
-  inkTint06: "rgba(11,11,12,0.07)",
+  surfaceHi: "#EDEAE1",
+  ink: "#201F1C",
+  inkDim: "#6E6C64",
+  hair: "rgba(32,31,28,0.12)",
+  hairStrong: "rgba(32,31,28,0.22)",
+  inkTint03: "rgba(32,31,28,0.03)",
+  inkTint04: "rgba(32,31,28,0.05)",
+  inkTint05: "rgba(32,31,28,0.06)",
+  inkTint06: "rgba(32,31,28,0.07)",
   offense: "#A56A24",
   offenseDim: "rgba(165,106,36,0.12)",
   defense: "#2E6479",
@@ -273,12 +267,12 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
         onClick={onToggleOpen}
         className="db-btn"
         style={{
-          fontFamily: FONT_TECH,
-          fontSize: "13px",
+          fontFamily: "'IBM Plex Mono', monospace",
+          fontSize: "11.5px",
           padding: "6px 10px",
           fontWeight: count > 0 ? 700 : 400,
-          borderColor: count > 0 ? AF_RED : colors.hair,
-          color: count > 0 ? AF_RED : colors.inkDim,
+          borderColor: count > 0 ? colors.offense : colors.hair,
+          color: count > 0 ? colors.offense : colors.inkDim,
           whiteSpace: "nowrap",
         }}
       >
@@ -310,8 +304,8 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
                 textAlign: "left",
                 background: "none",
                 border: "none",
-                color: AF_RED,
-                fontFamily: FONT_TECH,
+                color: "#E24C4C",
+                fontFamily: "'IBM Plex Mono', monospace",
                 fontSize: "11px",
                 padding: "4px 6px",
                 cursor: "pointer",
@@ -330,7 +324,7 @@ function MultiSelectFilter({ label, options, selected, onToggle, onClear, isOpen
                 gap: "6px",
                 padding: "4px 6px",
                 fontSize: "11.5px",
-                fontFamily: FONT_TECH,
+                fontFamily: "'IBM Plex Mono', monospace",
                 color: colors.ink,
                 cursor: "pointer",
                 borderRadius: "4px",
@@ -1899,35 +1893,29 @@ ${extraStyles}
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Saira+Condensed:wght@400;500;600;700&display=swap');
         .db-row:hover { background: ${COLORS.inkTint04} !important; }
         .db-input {
           background: ${COLORS.inkTint06};
           border: 1px solid ${COLORS.hair};
           color: ${COLORS.ink};
-          border-radius: 2px;
+          border-radius: 4px;
           padding: 6px 8px;
           font-family: 'Inter', sans-serif;
           font-size: 12.5px;
           outline: none;
         }
-        .db-input:focus { border-color: ${AF_RED}; }
+        .db-input:focus { border-color: ${COLORS.hairStrong}; }
         .db-input::placeholder { color: ${COLORS.inkDim}; }
         .db-input option { color: #15171A; background: #ECE7DC; }
         .db-btn {
           background: transparent;
-          border: 1px solid ${COLORS.hairStrong};
-          color: ${COLORS.ink};
-          border-radius: 2px;
+          border: 1px solid ${COLORS.hair};
+          color: ${COLORS.inkDim};
+          border-radius: 4px;
           cursor: pointer;
-          font-family: ${FONT_BODY};
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
           transition: all 0.12s ease;
         }
-        .db-btn:hover:not(:disabled) { background: ${AF_RED} !important; border-color: ${AF_RED} !important; color: #FFFFFF !important; }
-        .db-btn:disabled { opacity: 0.5; cursor: default; }
+        .db-btn:hover { border-color: ${COLORS.hairStrong}; color: ${COLORS.ink}; }
 
         @media print {
           @page { size: landscape; margin: 10mm; }
@@ -1951,7 +1939,6 @@ ${extraStyles}
           borderRadius: "50%",
           border: `6px double ${accent}`,
           opacity: 0.07,
-          display: "none",
           transform: "rotate(-10deg)",
           display: "flex",
           alignItems: "center",
@@ -1960,8 +1947,8 @@ ${extraStyles}
           pointerEvents: "none",
         }}
       >
-        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: "56px", color: AF_RED }}>1.0</span>
-        <span style={{ fontFamily: FONT_TECH, fontSize: "11px", letterSpacing: "2px", color: AF_RED }}>
+        <span style={{ fontFamily: "'Anton', sans-serif", fontSize: "56px", color: accent }}>1.0</span>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", letterSpacing: "2px", color: accent }}>
           ELITE
         </span>
       </div>
@@ -1969,10 +1956,10 @@ ${extraStyles}
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "14px", flexWrap: "wrap" }}>
-            <h1 style={{ fontFamily: FONT_DISPLAY, fontSize: "48px", letterSpacing: "2px", margin: 0, lineHeight: 1, borderLeft: `6px solid ${AF_RED}`, paddingLeft: "12px", textTransform: "uppercase" }}>
+            <h1 style={{ fontFamily: "'Anton', sans-serif", fontSize: "40px", letterSpacing: "1px", margin: 0, lineHeight: 1 }}>
               A1 DARK STAR
             </h1>
-            <span style={{ fontFamily: FONT_TECH, fontSize: "14px", color: COLORS.inkDim, letterSpacing: "1.5px", textTransform: "uppercase" }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim, letterSpacing: "1px" }}>
               {session.user.email}
             </span>
           </div>
@@ -2030,7 +2017,7 @@ ${extraStyles}
                 {pwMsg}
               </div>
             )}
-            <button className="db-btn" onClick={handleSetPassword} style={{ padding: "6px 12px", fontSize: "12px", color: AF_RED, borderColor: AF_RED }}>
+            <button className="db-btn" onClick={handleSetPassword} style={{ padding: "6px 12px", fontSize: "12px", color: accent, borderColor: accent }}>
               Save password
             </button>
           </div>
@@ -2038,28 +2025,28 @@ ${extraStyles}
 
         <div
           style={{
-            height: "3px",
-            marginTop: "14px",
-            marginBottom: "22px",
-            background: `linear-gradient(90deg, ${AF_RED} 0, ${AF_RED} 96px, ${COLORS.hairStrong} 96px)`,
+            height: "10px",
+            marginTop: "10px",
+            marginBottom: "20px",
+            backgroundImage: `repeating-linear-gradient(90deg, ${COLORS.hair} 0px, ${COLORS.hair} 1px, transparent 1px, transparent 24px)`,
           }}
         />
 
         <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: "wrap", marginBottom: "6px" }}>
-          <div style={{ display: "flex", border: `1px solid ${COLORS.hairStrong}`, borderRadius: "2px", overflow: "hidden" }}>
+          <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
             {["FOOTBALL", "BASKETBALL"].map((s) => (
               <button
                 key={s}
                 onClick={() => { setSport(s); setExpandedId(null); setAddOpenFor(null); }}
                 style={{
-                  fontFamily: FONT_DISPLAY,
+                  fontFamily: "'Bebas Neue', sans-serif",
                   fontSize: "15px",
                   letterSpacing: "1px",
                   padding: "8px 16px",
                   border: "none",
                   cursor: "pointer",
-                  background: sport === s ? AF_RED : "transparent",
-                  color: sport === s ? "#FFFFFF" : COLORS.inkDim,
+                  background: sport === s ? "rgba(201,151,62,0.14)" : "transparent",
+                  color: sport === s ? "#C9973E" : COLORS.inkDim,
                 }}
               >
                 {s}
@@ -2068,20 +2055,20 @@ ${extraStyles}
           </div>
 
           {!isBasketball && !isVetView && (
-            <div style={{ display: "flex", border: `1px solid ${COLORS.hairStrong}`, borderRadius: "2px", overflow: "hidden" }}>
+            <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
               {["list", "board"].map((m) => (
                 <button
                   key={m}
                   onClick={() => setViewMode(m)}
                   style={{
-                    fontFamily: FONT_DISPLAY,
+                    fontFamily: "'Bebas Neue', sans-serif",
                     fontSize: "15px",
                     letterSpacing: "1px",
                     padding: "8px 16px",
                     border: "none",
                     cursor: "pointer",
-                    background: viewMode === m ? AF_RED : "transparent",
-                    color: viewMode === m ? "#FFFFFF" : COLORS.inkDim,
+                    background: viewMode === m ? "rgba(201,151,62,0.14)" : "transparent",
+                    color: viewMode === m ? "#C9973E" : COLORS.inkDim,
                   }}
                 >
                   {m === "list" ? "LIST VIEW" : "BOARD VIEW"}
@@ -2091,20 +2078,20 @@ ${extraStyles}
           )}
 
           {!isBasketball && viewMode === "board" && (
-            <div style={{ display: "flex", border: `1px solid ${COLORS.hairStrong}`, borderRadius: "2px", overflow: "hidden" }}>
+            <div style={{ display: "flex", border: `1px solid ${COLORS.hair}`, borderRadius: "6px", overflow: "hidden" }}>
               {["OFFENSE", "DEFENSE"].map((b) => (
                 <button
                   key={b}
                   onClick={() => setBoard(b)}
                   style={{
-                    fontFamily: FONT_DISPLAY,
+                    fontFamily: "'Bebas Neue', sans-serif",
                     fontSize: "17px",
                     letterSpacing: "1.5px",
                     padding: "8px 22px",
                     border: "none",
                     cursor: "pointer",
-                    background: board === b ? (b === "OFFENSE" ? COLORS.offense : COLORS.defense) : "transparent",
-                    color: board === b ? (b === "OFFENSE" ? "#0B0B0C" : "#FFFFFF") : COLORS.inkDim,
+                    background: board === b ? (b === "OFFENSE" ? COLORS.offenseDim : COLORS.defenseDim) : "transparent",
+                    color: board === b ? (b === "OFFENSE" ? COLORS.offense : COLORS.defense) : COLORS.inkDim,
                   }}
                 >
                   {b}
@@ -2122,11 +2109,11 @@ ${extraStyles}
                     onClick={() => setBbYear(y)}
                     className="db-btn"
                     style={{
-                      fontFamily: FONT_TECH,
+                      fontFamily: "'IBM Plex Mono', monospace",
                       fontSize: "12.5px",
                       padding: "7px 10px",
-                      borderColor: bbYear === y ? AF_RED : COLORS.hair,
-                      color: bbYear === y ? AF_RED : COLORS.inkDim,
+                      borderColor: bbYear === y ? accent : COLORS.hair,
+                      color: bbYear === y ? accent : COLORS.inkDim,
                     }}
                   >
                     {y}
@@ -2138,11 +2125,11 @@ ${extraStyles}
                     value={typeof year === "number" ? year : ""}
                     onChange={(e) => setYear(Number(e.target.value))}
                     style={{
-                      fontFamily: FONT_TECH,
+                      fontFamily: "'IBM Plex Mono', monospace",
                       fontSize: "12.5px",
                       padding: "7px 10px",
-                      borderColor: !isVetView ? AF_RED : COLORS.hair,
-                      color: !isVetView ? AF_RED : COLORS.inkDim,
+                      borderColor: !isVetView ? accent : COLORS.hair,
+                      color: !isVetView ? accent : COLORS.inkDim,
                       fontWeight: 700,
                     }}
                   >
@@ -2156,7 +2143,7 @@ ${extraStyles}
                 onClick={() => setYear("VET")}
                 className="db-btn"
                 style={{
-                  fontFamily: FONT_TECH,
+                  fontFamily: "'IBM Plex Mono', monospace",
                   fontSize: "12.5px",
                   fontWeight: 700,
                   padding: "7px 10px",
@@ -2176,10 +2163,10 @@ ${extraStyles}
               display: "flex",
               alignItems: "center",
               gap: "6px",
-              fontFamily: FONT_TECH,
+              fontFamily: "'IBM Plex Mono', monospace",
               fontSize: "12px",
               fontWeight: 700,
-              color: a1Only ? AF_RED : COLORS.inkDim,
+              color: a1Only ? "#E24C4C" : COLORS.inkDim,
               cursor: "pointer",
               whiteSpace: "nowrap",
               marginLeft: "auto",
@@ -2289,7 +2276,7 @@ ${extraStyles}
             </button>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: FONT_TECH, fontSize: "12px", color: COLORS.inkDim }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "12px", color: COLORS.inkDim }}>
             {viewMode === "list" && !isBasketball ? listRows.length : totalCount} {isVetView ? "players" : "prospects"} {viewMode === "board" || isBasketball ? `· ${isBasketball ? bbYear : year}` : "· all years"}
           </div>
         </div>
@@ -2321,9 +2308,9 @@ ${extraStyles}
               <button
                 onClick={() => setListFilters({ position: new Set(), school: new Set(), status: new Set(), agent: new Set(), tier: new Set(), draftYear: new Set() })}
                 style={{
-                  fontFamily: FONT_TECH,
+                  fontFamily: "'IBM Plex Mono', monospace",
                   fontSize: "11px",
-                  color: AF_RED,
+                  color: "#E24C4C",
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -2338,13 +2325,13 @@ ${extraStyles}
                 onClick={() => setListAddOpen((v) => !v)}
                 className="db-btn"
                 style={{
-                  fontFamily: FONT_TECH,
+                  fontFamily: "'IBM Plex Mono', monospace",
                   fontSize: "11.5px",
                   padding: "6px 10px",
                   marginLeft: "auto",
                   fontWeight: 700,
-                  borderColor: AF_RED,
-                  color: AF_RED,
+                  borderColor: accent,
+                  color: accent,
                   whiteSpace: "nowrap",
                 }}
               >
@@ -2443,7 +2430,7 @@ ${extraStyles}
               className="db-btn"
               onClick={submitListAdd}
               disabled={!listAddDraft.name.trim()}
-              style={{ padding: "7px 14px", fontSize: "12px", fontWeight: 700, borderColor: AF_RED, color: AF_RED }}
+              style={{ padding: "7px 14px", fontSize: "12px", fontWeight: 700, borderColor: accent, color: accent }}
             >
               Add
             </button>
@@ -2486,7 +2473,7 @@ ${extraStyles}
               onClick={(e) => e.stopPropagation()}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "16px" }}>
-                <h2 style={{ fontFamily: FONT_DISPLAY, fontSize: "22px", letterSpacing: "1px", margin: 0 }}>
+                <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "22px", letterSpacing: "1px", margin: 0 }}>
                   BUILD REPORT
                 </h2>
                 <button className="db-btn" onClick={() => setReportOpen(false)} style={{ padding: "4px 9px" }}>
@@ -2505,7 +2492,7 @@ ${extraStyles}
                     onClick={() => setReportType(t.key)}
                     style={{
                       flex: 1,
-                      fontFamily: FONT_DISPLAY,
+                      fontFamily: "'Bebas Neue', sans-serif",
                       fontSize: "14px",
                       letterSpacing: "0.8px",
                       padding: "8px 10px",
@@ -2752,7 +2739,7 @@ ${extraStyles}
                 >
                   <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${COLORS.hair}` }}>
                     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                      <span style={{ fontFamily: FONT_DISPLAY, fontSize: "24px", letterSpacing: "1px", color: accent }}>
+                      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "24px", letterSpacing: "1px", color: accent }}>
                         {pos.abbr}
                       </span>
                       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "11px", color: COLORS.inkDim }}>
