@@ -940,7 +940,16 @@ export default function DraftBoard({ session }) {
     XLSX.writeFile(wb, filename);
   }
 
-  function handlePrintReport() {
+  async function handlePrintReport() {
+    // Open the report window immediately (keeps the popup blocker happy), then load optional season stats.
+    const win = window.open("", "_blank");
+    let seasonStats = null;
+    try {
+      const resp = await fetch("/season_stats.json", { cache: "no-store" });
+      if (resp.ok) seasonStats = await resp.json();
+    } catch (e) {
+      seasonStats = null;
+    }
     const filterLabelParts = [
       reportFilters.agent && `Agent: ${reportFilters.agent}`,
       reportFilters.position && `Position: ${reportFilters.position}`,
@@ -978,6 +987,9 @@ export default function DraftBoard({ session }) {
   .player-info div { padding: 6px 12px; border-bottom: 1px solid #eee; font-weight: 600; }
   .player-info div:last-child { border-bottom: none; }
   .other-agency { color: #C0392B; font-weight: 800; }
+  .season-stat { font-size: 10.5px; line-height: 1.35; color: #222; }
+  .season-stat .lbl { font-weight: 800; }
+  .season-stat .asof { color: #777; font-weight: 600; }
   .grades-table { flex: 1; width: auto; border-collapse: collapse; font-size: 11.5px; }
   .grades-table th, .grades-table td { border: 1px solid #ddd; padding: 6px 9px; text-align: left; }
   .grades-table th { background: #eee; color: #333; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; font-size: 9.5px; }
@@ -986,6 +998,7 @@ export default function DraftBoard({ session }) {
       const blocks = reportGradeRows
         .map((p) => {
           const ungraded = p.sortedGrades.length === 0;
+          const statLine = seasonStats && seasonStats.stats ? seasonStats.stats[`${p.name}|${p.school}`] : null;
           const gradesHtml = ungraded
             ? `<tr><td colspan="${reportHideScouts ? 3 : 4}" style="text-align:center;color:#777;font-style:italic;">No grades yet</td></tr>`
             : p.sortedGrades
@@ -1017,6 +1030,7 @@ export default function DraftBoard({ session }) {
                 <div>Agent 2: ${p.agent_2 || "—"}</div>
                 <div>Agent 3: ${p.agent_3 || "—"}</div>
                 <div>Other Agency: ${p.other_agency ? `<span class="other-agency">${p.other_agency}</span>` : "—"}</div>
+                ${statLine ? `<div class="season-stat"><span class="lbl">2026 Stats:</span> ${statLine}${seasonStats.asof ? ` <span class="asof">(thru ${seasonStats.asof})</span>` : ""}</div>` : ""}
               </div>
               <table class="grades-table">
                 <colgroup>${reportHideScouts ? '<col style="width:40%" /><col style="width:30%" /><col style="width:30%" />' : '<col style="width:25%" /><col style="width:30%" /><col style="width:20%" /><col style="width:25%" />'}</colgroup>
@@ -1202,7 +1216,6 @@ ${extraStyles}
   <script>window.onload = () => { window.print(); };</script>
 </body>
 </html>`;
-    const win = window.open("", "_blank");
     if (win) {
       win.document.write(html);
       win.document.close();
